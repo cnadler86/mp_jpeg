@@ -1,0 +1,176 @@
+name: ESP32
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - '**'
+    paths:
+      - 'src/**'
+      - '.github/workflows/*.yml'
+    tags-ignore:
+      - 'v*'
+  pull_request:
+    branches:
+      - master
+    paths:
+      - 'src/**'
+      - '.github/workflows/*.yml'
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  setup-environment:
+    runs-on: ubuntu-24.04
+    steps:
+     # Get the latest MicroPython release
+      - name: Get MicroPython latest release
+        run: |
+          MPY_RELEASE=$(curl --silent "https://api.github.com/repos/micropython/micropython/releases/latest" | jq -r .tag_name)
+          echo "MPY_RELEASE=${MPY_RELEASE}" >> $GITHUB_ENV
+
+      # Cache ESP-IDF dependencies and MicroPython
+      - name: Cache ESP-IDF and MicroPython
+        id: cache_esp_idf
+        uses: actions/cache@v4
+        with:
+          lookup-only: true
+          path: |
+            ~/esp-idf/
+            ~/.espressif/
+            !~/.espressif/dist/
+            ~/.cache/pip/
+            ~/micropython/
+          key: mpy-${{ env.MPY_RELEASE }}
+          restore-keys: mpy-
+
+      # Install ESP-IDF dependencies (if not cached)
+      - name: Install dependencies
+        if: steps.cache_esp_idf.outputs.cache-hit != 'true'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y git wget flex bison gperf python3 python3-pip python3-venv cmake ninja-build ccache libffi-dev libssl-dev dfu-util libusb-1.0-0
+
+      # Clone the latest MicroPython release (if not cached)
+      - name: Clone MicroPython latest release
+        id: clone-micropython
+        if: steps.cache_esp_idf.outputs.cache-hit != 'true'
+        run: |
+          echo "Cloning MicroPython release: $MPY_RELEASE"
+          cd ~
+          git clone --depth 1 --branch ${{ env.MPY_RELEASE }} https://github.com/micropython/micropython.git
+          cd micropython
+          git submodule update --init --depth 1
+          cd mpy-cross
+          make
+          cd ~/micropython/ports/esp32
+          make submodules
+          echo "Micropython setup successfully"
+          source ~/micropython/tools/ci.sh && echo "IDF_VER=$IDF_VER" >> $GITHUB_ENV
+
+      # Download and set up ESP-IDF (if not cached)
+      - name: Set up ESP-IDF
+        id: export-idf
+        if: steps.cache_esp_idf.outputs.cache-hit != 'true'
+        run: |
+          cd ~
+          git clone --depth 1 --branch ${{ env.IDF_VER }} https://github.com/espressif/esp-idf.git
+          git -C esp-idf submodule update --init --recursive --filter=tree:0
+          cd esp-idf
+          ./install.sh all
+          # cd components
+          # latest_jpeg_driver=$(curl -s https://api.github.com/repos/espressif/esp32-camera/releases/latest | grep '"tag_name":' | sed -E 's/.*"([^"]+)".*/\1/')
+          # git clone --depth 1 --branch $latest_jpeg_driver https://github.com/espressif/esp32-camera.git
+          # cd ~/esp-idf/
+          source ./export.sh
+
+  # Dynamically create jobs for each board
+  build:
+    needs: setup-environment
+    runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        board:
+          - ESP32_GENERIC
+          - ESP32_GENERIC-UNICORE
+          - ESP32_GENERIC-OTA
+          - ESP32_GENERIC-D2WD
+          - ESP32_GENERIC-SPIRAM
+          - ESP32_GENERIC_S2
+          - ESP32_GENERIC_S3
+          - ESP32_GENERIC_S3-SPIRAM_OCT
+          - ESP32_GENERIC_S3-FLASH_4M
+          - ESP32_GENERIC-C3
+          - ESP32_GENERIC-C6
+
+    steps:
+     # Get the latest MicroPython release
+      - name: Get MicroPython latest release
+        run: |
+          MPY_RELEASE=$(curl --silent "https://api.github.com/repos/micropython/micropython/releases/latest" | jq -r .tag_name)
+          echo "MPY_RELEASE=${MPY_RELEASE}" >> $GITHUB_ENV
+
+      # Cache ESP-IDF dependencies and MicroPython
+      - name: Cache ESP-IDF and MicroPython
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/esp-idf/
+            ~/.espressif/
+            !~/.espressif/dist/
+            ~/.cache/pip/
+            ~/micropython/
+          key: mpy-${{ env.MPY_RELEASE }}
+          restore-keys: mpy-
+
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install ESP-IDF dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y git wget flex bison gperf python3 python3-pip python3-venv cmake ninja-build ccache libffi-dev libssl-dev dfu-util libusb-1.0-0 build-essential pkg-config
+
+      # Build MicroPython for each board
+      - name: Build MicroPython
+        run: |
+          # cd ~/esp-idf/components/esp32-camera
+          # CAM_DRIVER=$(git describe --tags --always --dirty)
+          cd ~/micropython/ports/esp32
+          source ~/esp-idf/export.sh
+
+          idf.py add-dependency "espressif/esp_new_jpeg^0.6.0"
+          
+          # Check if a variant is defined and adjust the idf.py command
+          IFS='@' read -r BUILD_TARGET CUSTOM_MODEL <<< "${{ matrix.board }}"
+          IFS='-' read -r BOARD_NAME BOARD_VARIANT <<< "${BUILD_TARGET}"
+          
+          if [ -n "${BOARD_VARIANT}" ]; then
+            IDF_CMD="idf.py -D MICROPY_BOARD=$BOARD_NAME -D USER_C_MODULES=${{ github.workspace }}/src/micropython.cmake -D MICROPY_BOARD_VARIANT=$BOARD_VARIANT -B build-$BUILD_TARGET"
+          else
+            IDF_CMD="idf.py -D MICROPY_BOARD=$BOARD_NAME -D USER_C_MODULES=${{ github.workspace }}/src/micropython.cmake -B build-$BUILD_TARGET"
+          fi
+          if [ -n "${CUSTOM_MODEL}" ]; then
+            echo "FW_NAME=${CUSTOM_MODEL}" >> $GITHUB_ENV
+            FINAL_CMD="${IDF_CMD} -D MICROPY_CUSTOM_MODEL=${CUSTOM_MODEL} build"
+          else
+            echo "FW_NAME=${BUILD_TARGET}" >> $GITHUB_ENV
+            FINAL_CMD="${IDF_CMD} build"
+          fi
+          make USER_C_MODULES=${{ github.workspace }}/src/micropython.cmake BOARD=$BOARD_NAME submodules
+          echo "Running command: $FINAL_CMD"
+          eval $FINAL_CMD
+          cd ~/micropython/ports/esp32/build-${BUILD_TARGET}
+          python ../makeimg.py sdkconfig bootloader/bootloader.bin partition_table/partition-table.bin micropython.bin firmware.bin micropython.uf2
+          mkdir -p ~/artifacts
+          mv ~/micropython/ports/esp32/build-${BUILD_TARGET}/firmware.bin ~/artifacts/firmware.bin
+
+      - name: Upload firmware artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: firmware-${{ env.FW_NAME }}
+          path: ~/artifacts/**
+          retention-days: 5
