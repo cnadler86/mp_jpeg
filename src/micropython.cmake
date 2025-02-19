@@ -1,7 +1,7 @@
 # Register the component
-idf_component_register(SRCS "src/jpeg_esp.c"
-                       INCLUDE_DIRS "."
-                       REQUIRES esp_new_jpeg)
+# idf_component_register(SRCS "src/jpeg_esp.c"
+#                        INCLUDE_DIRS "."
+#                        REQUIRES esp_new_jpeg)
 
 # Add the usermod_mp_jpeg library
 add_library(usermod_mp_jpeg INTERFACE)
