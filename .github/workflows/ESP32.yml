@@ -81,12 +81,15 @@ jobs:
           git -C esp-idf submodule update --init --recursive --filter=tree:0
           cd esp-idf
           ./install.sh all
-          cd components
-          # latest_jpeg_driver=$(curl -s https://api.github.com/repos/espressif/esp-adf-libs/releases/latest | grep '"tag_name":' | sed -E 's/.*"([^"]+)".*/\1/')
-          # git clone --depth 1 --branch $latest_jpeg_driver https://github.com/espressif/esp32-camera.git
-          git clone https://github.com/espressif/esp-adf-libs.git
-          cd ~/esp-idf/
           source ./export.sh
+
+      - name: Put relevant component in esp components directory
+        id: copy-components
+        if: steps.cache_esp_idf.outputs.cache-hit != 'true'
+        run: |
+          cd ~
+          git clone https://github.com/espressif/esp-adf-libs.git
+          cp -r ~/esp-adf-libs/esp_new_jpeg ~/esp-idf/components/
 
   # Dynamically create jobs for each board
   build:
