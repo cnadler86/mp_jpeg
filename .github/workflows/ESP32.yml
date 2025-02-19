@@ -141,8 +141,6 @@ jobs:
           # CAM_DRIVER=$(git describe --tags --always --dirty)
           cd ~/micropython/ports/esp32
           source ~/esp-idf/export.sh
-
-          idf.py add-dependency "espressif/esp_new_jpeg^0.6.0"
           
           # Check if a variant is defined and adjust the idf.py command
           IFS='@' read -r BUILD_TARGET CUSTOM_MODEL <<< "${{ matrix.board }}"
