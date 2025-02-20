@@ -1,4 +1,6 @@
 # JPEG ESP MicroPython Wrapper
+This is a work in progress and it is in the early stages.
+
 A very fast micropython jpeg decoder and encoder, at the moment just for most of the esp boards.
 Take a look at the releases or in the workflows. There you will file precompiled images with the latest 
 ## Features
