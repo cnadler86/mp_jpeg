@@ -84,12 +84,3 @@ encoded_jpeg = encoder.encode(image_data)
 
 - `encode(img_data)`: Encodes the image data to JPEG format and returns the encoded JPEG data.
   - `img_data`: Raw image data to encode.
-
-- `__del__()`: Cleans up resources used by the encoder.
-
-## License
-
-This project is licensed under the MIT License. See the [LICENSE](LICENSE) file for details.
-```
-
-You may need to update the example file paths and ensure the correct imports as per your project setup.
