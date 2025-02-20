@@ -102,7 +102,6 @@ jobs:
           - ESP32_GENERIC
           - ESP32_GENERIC-UNICORE
           - ESP32_GENERIC-OTA
-          - ESP32_GENERIC-D2WD
           - ESP32_GENERIC-SPIRAM
           - ESP32_GENERIC_S2
           - ESP32_GENERIC_S3
