@@ -1,18 +1,10 @@
 #include "py/runtime.h"
 #include "py/obj.h"
+// #include "py/objarray.h"
 #include "esp_jpeg_common.h"
 #include "esp_jpeg_dec.h"
+#include "esp_jpeg_enc.h"
 #include "py/mphal.h" 
-
-// structure for the JPEG decoder object
-typedef struct _jpeg_decoder_obj_t {
-    mp_obj_base_t base;
-    jpeg_dec_handle_t handle;
-    jpeg_dec_config_t config;
-    jpeg_dec_io_t io;
-    int block_pos;       // position of the current block
-    int block_counts;    // total number of blocks
-} jpeg_decoder_obj_t;
 
 // Helper functions
 static int jpeg_get_format_code(const char *format_str) {
@@ -77,7 +69,17 @@ static void jpeg_err_to_mp_exception(jpeg_error_t err, const char *msg) {
     }
 }
 
-// Consturctor function
+// structure for the JPEG decoder object
+typedef struct _jpeg_decoder_obj_t {
+    mp_obj_base_t base;
+    jpeg_dec_handle_t handle;
+    jpeg_dec_config_t config;
+    jpeg_dec_io_t io;
+    int block_pos;       // position of the current block
+    int block_counts;    // total number of blocks
+} jpeg_decoder_obj_t;
+
+// Consturctor function for the JPEG decoder object
 static mp_obj_t jpeg_decoder_make_new(const mp_obj_type_t *type, size_t n_args, size_t n_kw, const mp_obj_t *args) {
     static const mp_arg_t allowed_args[] = {
         { MP_QSTR_rotation, MP_ARG_KW_ONLY | MP_ARG_INT, {.u_int = 0} },
@@ -255,8 +257,109 @@ MP_DEFINE_CONST_OBJ_TYPE(
     locals_dict, &jpeg_decoder_locals_dict
 );
 
+// Encoder object
+
+// structure for the JPEG encoder object
+typedef struct _jpeg_encoder_obj_t {
+    mp_obj_base_t base;
+    jpeg_enc_handle_t jpeg_enc;
+    jpeg_enc_config_t config;
+    uint8_t *workbuf;
+    int workbuf_size;
+} jpeg_encoder_obj_t;
+
+// Consturctor function for the JPEG encoder object
+static mp_obj_t jpeg_encoder_make_new(const mp_obj_type_t *type, size_t n_args, size_t n_kw, const mp_obj_t *args) {
+    static const mp_arg_t allowed_args[] = {
+        { MP_QSTR_format, MP_ARG_KW_ONLY | MP_ARG_OBJ, {.u_obj = mp_const_none} },
+        { MP_QSTR_quality, MP_ARG_KW_ONLY | MP_ARG_INT, {.u_int = 90} },
+        { MP_QSTR_rotation, MP_ARG_KW_ONLY | MP_ARG_INT, {.u_int = 0} },
+        { MP_QSTR_height, MP_ARG_KW_ONLY | MP_ARG_INT, {.u_int = 0} },
+        { MP_QSTR_width, MP_ARG_KW_ONLY | MP_ARG_INT, {.u_int = 0} },
+    };
+
+    mp_arg_val_t parsed_args[MP_ARRAY_SIZE(allowed_args)];
+    mp_arg_parse_all_kw_array(n_args, n_kw, args, MP_ARRAY_SIZE(allowed_args), allowed_args, parsed_args);
+
+    jpeg_encoder_obj_t *self = mp_obj_malloc_with_finaliser(jpeg_encoder_obj_t, type);
+    self->base.type = type;
+    self->jpeg_enc = NULL;
+
+    self->config = (jpeg_enc_config_t)DEFAULT_JPEG_ENC_CONFIG();
+    self->config.quality = parsed_args[1].u_int;
+    self->config.width = parsed_args[4].u_int;
+    self->config.height = parsed_args[3].u_int;
+    self->config.rotate = jpeg_get_rotation_code(parsed_args[2].u_int);
+    if (parsed_args[0].u_obj != mp_const_none) {
+        self->config.src_type = jpeg_get_format_code(mp_obj_str_get_str(parsed_args[0].u_obj));
+    }
+
+    jpeg_error_t ret = jpeg_enc_open(&self->config, &self->jpeg_enc);
+    if (ret != JPEG_ERR_OK) {
+        jpeg_err_to_mp_exception(ret, "Failed to initialize JPEG encoder object");
+    }
+
+    self->workbuf_size = self->config.width * self->config.height;
+    self->workbuf = (uint8_t *)calloc(1, self->workbuf_size);
+    if (self->workbuf == NULL) {
+        mp_raise_msg(&mp_type_MemoryError, MP_ERROR_TEXT("Failed to allocate work buffer"));
+    }
+
+    return MP_OBJ_FROM_PTR(self);
+}
+
+static mp_obj_t jpeg_encoder_encode(mp_obj_t self_in, mp_obj_t img_data) {
+    jpeg_encoder_obj_t *self = MP_OBJ_TO_PTR(self_in);
+    mp_buffer_info_t bufinfo;
+    mp_get_buffer_raise(img_data, &bufinfo, MP_BUFFER_READ);
+
+    jpeg_error_t ret = JPEG_ERR_OK;
+    int out_len = 0;
+    // encode the image
+    ret = jpeg_enc_process(self->jpeg_enc, bufinfo.buf, bufinfo.len, self->workbuf, self->workbuf_size, &out_len);
+    if (ret != JPEG_ERR_OK) {
+        mp_raise_msg(&mp_type_RuntimeError, MP_ERROR_TEXT("JPEG encoding failed"));
+    }
+
+    mp_obj_t out_data = mp_obj_new_bytes(self->workbuf, out_len);
+    return out_data;
+}
+static MP_DEFINE_CONST_FUN_OBJ_2(jpeg_encoder_encode_obj, jpeg_encoder_encode);
+
+// `__del__()` method
+static mp_obj_t jpeg_encoder_del(mp_obj_t self_in) {
+    jpeg_encoder_obj_t *self = MP_OBJ_TO_PTR(self_in);
+    if (self->jpeg_enc) {
+        jpeg_enc_close(self->jpeg_enc);
+        self->jpeg_enc = NULL;
+    }
+    if (self->workbuf) {
+        free(self->workbuf);
+        self->workbuf = NULL;
+    }
+    return mp_const_none;
+}
+static MP_DEFINE_CONST_FUN_OBJ_1(jpeg_encoder_del_obj, jpeg_encoder_del);
+
+static const mp_rom_map_elem_t jpeg_encoder_locals_dict_table[] = {
+    {MP_ROM_QSTR(MP_QSTR_encode), MP_ROM_PTR(&jpeg_encoder_encode_obj)},
+    {MP_ROM_QSTR(MP_QSTR___del__), MP_ROM_PTR(&jpeg_encoder_del_obj)},
+    {MP_ROM_QSTR(MP_QSTR___enter__), MP_ROM_PTR(&mp_identity_obj)},
+    {MP_ROM_QSTR(MP_QSTR___exit__), MP_ROM_PTR(&jpeg_encoder_del_obj)},
+};
+static MP_DEFINE_CONST_DICT(jpeg_encoder_locals_dict, jpeg_encoder_locals_dict_table);
+
+MP_DEFINE_CONST_OBJ_TYPE(
+    jpeg_encoder_type,
+    MP_QSTR_Encoder,
+    MP_TYPE_FLAG_NONE,
+    make_new, jpeg_encoder_make_new,
+    locals_dict, &jpeg_encoder_locals_dict
+);
+
 static const mp_rom_map_elem_t jpeg_module_globals_table[] = {
     {MP_ROM_QSTR(MP_QSTR_decoder), MP_ROM_PTR(&jpeg_decoder_type)},
+    {MP_ROM_QSTR(MP_QSTR_encoder), MP_ROM_PTR(&jpeg_encoder_type)},
 };
 
 static MP_DEFINE_CONST_DICT(mp_module_jpeg_globals, jpeg_module_globals_table);
