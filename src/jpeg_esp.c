@@ -272,11 +272,11 @@ typedef struct _jpeg_encoder_obj_t {
 // Consturctor function for the JPEG encoder object
 static mp_obj_t jpeg_encoder_make_new(const mp_obj_type_t *type, size_t n_args, size_t n_kw, const mp_obj_t *args) {
     static const mp_arg_t allowed_args[] = {
-        { MP_QSTR_format, MP_ARG_KW_ONLY | MP_ARG_OBJ, {.u_obj = mp_const_none} },
+        { MP_QSTR_height, MP_ARG_REQUIRED | MP_ARG_INT, {.u_int = 0} },
+        { MP_QSTR_width, MP_ARG_REQUIRED | MP_ARG_INT, {.u_int = 0} },
+        { MP_QSTR_format, MP_ARG_REQUIRED | MP_ARG_OBJ, {.u_obj = mp_const_none} },
         { MP_QSTR_quality, MP_ARG_KW_ONLY | MP_ARG_INT, {.u_int = 90} },
         { MP_QSTR_rotation, MP_ARG_KW_ONLY | MP_ARG_INT, {.u_int = 0} },
-        { MP_QSTR_height, MP_ARG_KW_ONLY | MP_ARG_INT, {.u_int = 0} },
-        { MP_QSTR_width, MP_ARG_KW_ONLY | MP_ARG_INT, {.u_int = 0} },
     };
 
     mp_arg_val_t parsed_args[MP_ARRAY_SIZE(allowed_args)];
@@ -287,12 +287,12 @@ static mp_obj_t jpeg_encoder_make_new(const mp_obj_type_t *type, size_t n_args, 
     self->jpeg_enc = NULL;
 
     self->config = (jpeg_enc_config_t)DEFAULT_JPEG_ENC_CONFIG();
-    self->config.quality = parsed_args[1].u_int;
-    self->config.width = parsed_args[4].u_int;
-    self->config.height = parsed_args[3].u_int;
-    self->config.rotate = jpeg_get_rotation_code(parsed_args[2].u_int);
-    if (parsed_args[0].u_obj != mp_const_none) {
-        self->config.src_type = jpeg_get_format_code(mp_obj_str_get_str(parsed_args[0].u_obj));
+    self->config.height = parsed_args[0].u_int;
+    self->config.width = parsed_args[1].u_int;
+    self->config.quality = parsed_args[3].u_int;
+    self->config.rotate = jpeg_get_rotation_code(parsed_args[4].u_int);
+    if (parsed_args[2].u_obj != mp_const_none) {
+        self->config.src_type = jpeg_get_format_code(mp_obj_str_get_str(parsed_args[2].u_obj));
     }
 
     jpeg_error_t ret = jpeg_enc_open(&self->config, &self->jpeg_enc);
