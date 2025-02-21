@@ -1,0 +1,5 @@
+## IDF Component Manager Manifest File
+dependencies:
+  espressif/esp_new_jpeg: "0.6.0"
+  idf:
+    version: ">=5.0.0"

@@ -61,7 +61,7 @@ static void jpeg_err_to_mp_exception(jpeg_error_t err, const char *msg) {
             mp_raise_msg_varg(&mp_type_ValueError, MP_ERROR_TEXT("%s: JPEG standard not supported"), msg);
             break;
         case JPEG_ERR_FAIL:
-            mp_raise_msg_varg(&mp_type_RuntimeError, MP_ERROR_TEXT("%s: Internal JPEG decoder error"), msg);
+            mp_raise_msg_varg(&mp_type_RuntimeError, MP_ERROR_TEXT("%s: Internal JPEG library error"), msg);
             break;
         default:
             mp_raise_msg_varg(&mp_type_RuntimeError, MP_ERROR_TEXT("%s: Unknown error: %d"), msg, err);
@@ -133,7 +133,7 @@ static mp_obj_t jpeg_decoder_prepare(mp_obj_t self_in, mp_obj_t jpeg_data) {
         jpeg_dec_header_info_t out_info;
         ret = jpeg_dec_parse_header(self->handle, &self->io, &out_info);
         if (ret != JPEG_ERR_OK) {
-            jpeg_err_to_mp_exception(ret, "JPEG header parsing failed.");
+            jpeg_err_to_mp_exception(ret, "JPEG header parsing failed");
         }
 
         int output_len = 0;
@@ -164,43 +164,43 @@ static mp_obj_t jpeg_decoder_prepare(mp_obj_t self_in, mp_obj_t jpeg_data) {
 static MP_DEFINE_CONST_FUN_OBJ_2(jpeg_decoder_prepare_obj, jpeg_decoder_prepare);
 
 // `decode()` methods
-static mp_obj_t jpeg_decoder_decode(mp_obj_t self_in, mp_obj_t jpeg_data) {
-    jpeg_decoder_obj_t *self = MP_OBJ_TO_PTR(self_in);
-    mp_buffer_info_t bufinfo;
-    mp_get_buffer_raise(jpeg_data, &bufinfo, MP_BUFFER_READ);
+// static mp_obj_t jpeg_decoder_decode(mp_obj_t self_in, mp_obj_t jpeg_data) {
+//     jpeg_decoder_obj_t *self = MP_OBJ_TO_PTR(self_in);
+//     mp_buffer_info_t bufinfo;
+//     mp_get_buffer_raise(jpeg_data, &bufinfo, MP_BUFFER_READ);
 
-    self->io.inbuf = (uint8_t *)bufinfo.buf;
-    self->io.inbuf_len = bufinfo.len;
+//     self->io.inbuf = (uint8_t *)bufinfo.buf;
+//     self->io.inbuf_len = bufinfo.len;
 
-    jpeg_dec_header_info_t out_info;
-    jpeg_error_t ret = jpeg_dec_parse_header(self->handle, &self->io, &out_info);
-    if (ret != JPEG_ERR_OK) {
-        jpeg_err_to_mp_exception(ret, "JPEG header parsing failed");
-    }
+//     jpeg_dec_header_info_t out_info;
+//     jpeg_error_t ret = jpeg_dec_parse_header(self->handle, &self->io, &out_info);
+//     if (ret != JPEG_ERR_OK) {
+//         jpeg_err_to_mp_exception(ret, "JPEG header parsing failed");
+//     }
     
-    int new_output_len = (self->config.output_type == JPEG_PIXEL_FORMAT_RGB888) ? 
-                          (out_info.width * out_info.height * 3) : (out_info.width * out_info.height * 2);
+//     int new_output_len = (self->config.output_type == JPEG_PIXEL_FORMAT_RGB888) ? 
+//                           (out_info.width * out_info.height * 3) : (out_info.width * out_info.height * 2);
 
-    // If the output buffer size has changed, reallocate the buffer
-    if (new_output_len != self->io.out_size) {
-        if (self->io.outbuf) {
-            jpeg_free_align(self->io.outbuf);
-        }
-        self->io.outbuf = jpeg_calloc_align(new_output_len, 16);
-        if (!self->io.outbuf) {
-            mp_raise_msg(&mp_type_MemoryError, MP_ERROR_TEXT("Failed to allocate output buffer"));
-        }
-        self->io.out_size = new_output_len;
-    }
+//     // If the output buffer size has changed, reallocate the buffer
+//     if (new_output_len != self->io.out_size) {
+//         if (self->io.outbuf) {
+//             jpeg_free_align(self->io.outbuf);
+//         }
+//         self->io.outbuf = jpeg_calloc_align(new_output_len, 16);
+//         if (!self->io.outbuf) {
+//             mp_raise_msg(&mp_type_MemoryError, MP_ERROR_TEXT("Failed to allocate output buffer"));
+//         }
+//         self->io.out_size = new_output_len;
+//     }
     
-    ret = jpeg_dec_process(self->handle, &self->io);
-    if (ret != JPEG_ERR_OK) {
-        jpeg_err_to_mp_exception(ret, "JPEG decoding failed");
-    }
+//     ret = jpeg_dec_process(self->handle, &self->io);
+//     if (ret != JPEG_ERR_OK) {
+//         jpeg_err_to_mp_exception(ret, "JPEG decoding failed");
+//     }
     
-    return mp_obj_new_memoryview(MP_BUFFER_READ, self->io.out_size, self->io.outbuf);
-}
-static MP_DEFINE_CONST_FUN_OBJ_2(jpeg_decoder_decode_obj, jpeg_decoder_decode);
+//     return mp_obj_new_memoryview(MP_BUFFER_READ, self->io.out_size, self->io.outbuf);
+// }
+// static MP_DEFINE_CONST_FUN_OBJ_2(jpeg_decoder_decode_obj, jpeg_decoder_decode);
 
 static mp_obj_t jpeg_decoder_decode_block(mp_obj_t self_in, mp_obj_t jpeg_data) {
     jpeg_decoder_obj_t *self = MP_OBJ_TO_PTR(self_in);
@@ -239,8 +239,9 @@ static mp_obj_t jpeg_decoder_del(mp_obj_t self_in) {
 static MP_DEFINE_CONST_FUN_OBJ_1(jpeg_decoder_del_obj, jpeg_decoder_del);
 
 static const mp_rom_map_elem_t jpeg_decoder_locals_dict_table[] = {
-    {MP_ROM_QSTR(MP_QSTR_decode), MP_ROM_PTR(&jpeg_decoder_decode_obj)},
-    {MP_ROM_QSTR(MP_QSTR_decode_block), MP_ROM_PTR(&jpeg_decoder_decode_block_obj)},
+    // {MP_ROM_QSTR(MP_QSTR_decode), MP_ROM_PTR(&jpeg_decoder_decode_obj)},
+    // {MP_ROM_QSTR(MP_QSTR_decode_block), MP_ROM_PTR(&jpeg_decoder_decode_block_obj)},
+    {MP_ROM_QSTR(MP_QSTR_decode), MP_ROM_PTR(&jpeg_decoder_decode_block_obj)},
     {MP_ROM_QSTR(MP_QSTR_get_block_counts), MP_ROM_PTR(&jpeg_decoder_prepare_obj)},
     {MP_ROM_QSTR(MP_QSTR___del__), MP_ROM_PTR(&jpeg_decoder_del_obj)},
     {MP_ROM_QSTR(MP_QSTR___enter__), MP_ROM_PTR(&mp_identity_obj)},
