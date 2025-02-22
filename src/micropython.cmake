@@ -12,6 +12,8 @@ endfunction()
 
 add_library(usermod_mp_jpeg INTERFACE)
 
+add_dependencies(usermod_mp_jpeg esp_new_jpeg)
+
 target_sources(usermod_mp_jpeg INTERFACE
     ${CMAKE_CURRENT_LIST_DIR}/jpeg_esp.c
 )
