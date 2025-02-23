@@ -1,67 +1,16 @@
 # JPEG ESP MicroPython Wrapper
-This is a work in progress and it is in the early stages.
+This is a work in progress and it is in the early stages. A Release will be publisched soon. In the meantime, you can find firmware images in the actions section.
 
-A very fast micropython jpeg decoder and encoder, at the moment just for most of the esp boards.
-Take a look at the releases or in the workflows. There you will file precompiled images with the latest 
-## Features
+A very fast and memory-efficient micropython jpeg decoder and encoder. At the moment only the esp port is supported.
+If you are not familiar with building custom firmware, visit the releases page to download firmware that suits your board.
 
-- JPEG decoding with various pixel formats and rotations
-- JPEG encoding with configurable quality and rotation
-- Memory-efficient operations for embedded systems
+## Decoder
 
-## Installation
+### API Reference
 
-Clone the repository to your local machine:
-
-```bash
-git clone https://github.com/cnadler86/mp_jpeg.git
-```
-
-## Usage
-
-### Decoder
-
-The `Decoder` class provides methods to decode JPEG images.
-
-#### Example
-
-```python
-import jpeg
-
-# Create a JPEG decoder object
-decoder = jpeg.Decoder(rotation=0, format="RGB888")
-
-# Prepare the JPEG data for decoding
-jpeg_data = open("path/to/jpeg/image.jpg", "rb").read()
-
-# Decode the JPEG image
-decoded_image = decoder.decode(jpeg_data)
-```
-
-### Encoder
-
-The `Encoder` class provides methods to encode images to JPEG format.
-
-#### Example
-
-```python
-import jpeg
-
-# Create a JPEG encoder object
-encoder = jpeg.Encoder(format="RGB888", quality=90, rotation=0, width=320, height=240)
-
-# Encode the image data to JPEG format
-image_data = open("path/to/raw/image.bin", "rb").read()
-encoded_jpeg = encoder.encode(image_data)
-```
-
-## API Reference
-
-### Decoder
-
-- `Decoder(rotation=0, format="RGB888", block=False)`: Creates a new decoder object.
-  - `rotation`: Rotation angle for decoding (0, 90, 180, 270).
+- `Decoder(format="RGB888", rotation=0, block=False)`: Creates a new decoder object.
   - `format`: Pixel format for output (`RGB565_BE`, `RGB565_LE`, `CbYCrY`, `RGB888`).
+  - `rotation`: Rotation angle for decoding (0, 90, 180, 270). Default 0.
   - `block`: Enable block decoding (default: `False`).
 
 - `get_block_counts(jpeg_data)`: Prepares the JPEG data for decoding and returns the number of blocks. Only needed in case of block=True. 
@@ -73,14 +22,86 @@ encoded_jpeg = encoder.encode(image_data)
 - `decode_block(jpeg_data)`: Decodes the next block of the JPEG image and returns the decoded block. The decoder will give you a block of full width and the height will be either 8 or 16 pixels. You can estimate it by `image_height // decoder.get_block_counts()`
   - `jpeg_data`: JPEG data to decode.
 
-### Encoder
+### Example
 
-- `Encoder(format="RGB888", quality=90, rotation=0, width=320, height=240)`: Creates a new encoder object.
-  - `format`: Pixel format for input image (`RGB565_BE`, `RGB565_LE`, `CbYCrY`, `RGB888`).
-  - `quality`: JPEG quality (1-100).
-  - `rotation`: Rotation angle for encoding (0, 90, 180, 270).
-  - `width`: Width of the input image.
-  - `height`: Height of the input image.
+```python
+import jpeg
+
+# Create a JPEG decoder object
+decoder = jpeg.Decoder(rotation=180, format="RGB888")
+
+# Prepare the JPEG data for decoding
+jpeg_data = open("path/to/jpeg/image.jpg", "rb").read()
+
+# Decode the JPEG image
+decoded_image = decoder.decode(jpeg_data)
+```
+
+## Encoder
+
+### API Reference
+
+- `Encoder(height=240, width=320, format="RGB888", quality=90, rotation=0)`: Creates a new encoder object.
+  - `height`: Height of the input image. Required.
+  - `width`: Width of the input image. Required.
+  - `format`: Pixel format for input image (RGB888, RGBA, YCbYCr, YCbY2YCrY2, GRAY). Required.
+  - `quality`: JPEG quality (1-100). Default 90.
+  - `rotation`: Rotation angle for encoding (0, 90, 180, 270). Default 0.
+
 
 - `encode(img_data)`: Encodes the image data to JPEG format and returns the encoded JPEG data.
   - `img_data`: Raw image data to encode.
+  - Returns the bytes of the encoded image.
+
+### Example
+
+```python
+import jpeg
+
+# Create a JPEG encoder object
+encoder = jpeg.Encoder(format="RGB888", quality=80, rotation=90, width=320, height=240)
+
+# Encode the image data to JPEG format
+image_data = open("path/to/raw/image.bin", "rb").read()
+encoded_jpeg = encoder.encode(image_data)
+```
+
+## Benchmark Results for ESP32S3
+
+The following tables present the results of the JPEG decoding and encoding benchmarks performed on an ESP32S3.
+
+### Decoder Benchmark
+
+**Input Image Size:** 26,366 bytes.
+
+| Format    | FPS Normal Decode | FPS Block Decode (15) |
+|-----------|-------------------|-----------------------|
+| RGB565_BE | 21.80             | 34.73                 |
+| RGB565_LE | 21.79             | 34.72                 |
+| RGB888    | 17.61             | 32.14                 |
+| CbYCrY    | 21.85             | 38.17                 |
+
+**Input Image Size:** 7,941 bytes  
+
+| Format    | FPS Normal Decode | FPS Block Decode (15) |
+|-----------|-------------------|-----------------------|
+| RGB565_BE | 29.65             | 62.27                 |
+| RGB565_LE | 29.66             | 62.27                 |
+| RGB888    | 22.45             | 55.74                 |
+| CbYCrY    | 29.75             | 74.57                 |
+
+Block decode will be faster, because DRAM might be used.
+
+### Encoder Benchmark
+
+The image was 240x320 RGB888.
+
+| Quality | FPS Encode |
+|---------|------------|
+| 100     | 11.90      |
+| 90      | 17.58      |
+| 80      | 19.62      |
+| 70      | 20.55      |
+| 60      | 21.35      |
+
+The FPS might vary, depending on the image.

@@ -2,43 +2,46 @@ from time import ticks_ms
 import jpeg
 import gc
 
-Nr = 10
-with open(f'MyImage-320x240.jpg', mode="rb") as f:
-        Img = f.read()
-        
+Nr = 100
+Height = 240
+Width = 320
+with open(f'bigbuckbunny-320x240.jpg', mode="rb") as f:
+    Img = f.read()
+
 def decoder():
     gc.collect()
-    for format in ('RGB565_BE','RGB565_LE','RGB888','CbYCrY'):
-        print(f"Format: {format}")
-        Decoder=jpeg.decoder(format=format,rotation=0)
+    print("Decoder Benchmark")
+    print(f"Input Image Size: {len(Img)} bytes")
+    for format in ('RGB565_BE', 'RGB565_LE', 'RGB888', 'CbYCrY'):
+        print(f"\nFormat: {format}")
+        Decoder = jpeg.decoder(format=format, rotation=0)
         start = ticks_ms()
         for _ in range(Nr):
             ImgDec = Decoder.decode(Img)
-        print(f"FPS normal decode: {Nr*1000/(ticks_ms()-start)}. Decoded image size: {len(ImgDec)}")
+        print(f"FPS normal decode: {Nr * 1000 / (ticks_ms() - start):.2f}")
         
-        Decoder=jpeg.decoder(format=format,rotation=0,block=True)
-        
+        Decoder = jpeg.decoder(format=format, rotation=0, block=True)
         start = ticks_ms()
         blocks = Decoder.get_block_counts(Img)
         for _ in range(Nr):
-            for i in range(Decoder.get_block_counts(Img)):
+            for i in range(blocks):
                 ImgDec = Decoder.decode(Img)
-        print(f"FPS block decode ({blocks}): {Nr*1000/(ticks_ms()-start)}")
+        print(f"FPS block decode ({blocks}): {Nr * 1000 / (ticks_ms() - start):.2f}")
 
 def encoder():
-    Height = 240
-    Width = 320
-    for format in ('RGB565_BE','RGB565_LE','RGB888','CbYCrY'):
-        print(f"Format: {format}")
-        Decoder=jpeg.decoder(format=format,rotation=0)
-        ImgDec=Decoder.decode(Img)
-        Encoder=jpeg.encoder(format=format,quality=80,height=Height,width=Width)
+    print("\nEncoder Benchmark")
+    for quality in (100, 90, 80, 70, 60):
+        print(f"\nQuality: {quality}")
+        Decoder = jpeg.decoder(format='RGB888', rotation=0)
+        ImgDec = bytes(Decoder.decode(Img))
+        del Decoder
+        gc.collect()
+        Encoder = jpeg.encoder(format='RGB888', quality=quality, height=Height, width=Width)
         start = ticks_ms()
         for _ in range(Nr):
-            ImgEnc = Ecoder.encode(Img)
-        print(f"FPS normal decode: {Nr*1000/(ticks_ms()-start)}")
+            ImgEnc = Encoder.encode(ImgDec)
+        print(f"FPS encode quality {quality}: {Nr * 1000 / (ticks_ms() - start):.2f}")
         gc.collect()
-    
+
 decoder()
 encoder()
-

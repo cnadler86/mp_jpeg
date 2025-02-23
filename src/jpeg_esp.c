@@ -16,9 +16,16 @@ static int jpeg_get_format_code(const char *format_str) {
         return JPEG_PIXEL_FORMAT_CbYCrY;
     } else if (strcmp(format_str, "RGB888") == 0) {
         return JPEG_PIXEL_FORMAT_RGB888;
+    } else if (strcmp(format_str, "GRAY") == 0) {
+        return JPEG_PIXEL_FORMAT_GRAY;
+    } else if (strcmp(format_str, "RGBA") == 0) {
+        return JPEG_PIXEL_FORMAT_RGBA;
+    } else if (strcmp(format_str, "YCbYCr") == 0) {
+        return JPEG_PIXEL_FORMAT_YCbYCr;
+    } else if (strcmp(format_str, "YCbY2YCrY2") == 0) {
+        return JPEG_PIXEL_FORMAT_YCbY2YCrY2;
     } else {
-        mp_printf(&mp_plat_print, "Using default format: RGB888\n");
-        return JPEG_PIXEL_FORMAT_RGB888;
+        mp_raise_msg_varg(&mp_type_ValueError, MP_ERROR_TEXT("Format %s not supported"), format_str);
     }
 }
 
