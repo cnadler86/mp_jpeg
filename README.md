@@ -67,7 +67,7 @@ encoded_jpeg = encoder.encode(image_data)
 
 ## Benchmark Results for ESP32S3
 
-The following tables present the results of the JPEG decoding and encoding benchmarks performed on an ESP32S3.
+The following tables present the results of the JPEG decoding and encoding benchmarks performed on an ESP32S3. The image was 240x320.
 
 ### Decoder Benchmark
 
@@ -93,9 +93,7 @@ Block decode will be faster, because DRAM might be used.
 
 ### Encoder Benchmark
 
-The image was 240x320 RGB888.
-
-| Quality | FPS Encode |
+| Quality | FPS RGB888 |
 |---------|------------|
 | 100     | 11.90      |
 | 90      | 17.58      |
