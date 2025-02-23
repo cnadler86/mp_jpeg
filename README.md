@@ -1,5 +1,4 @@
 # JPEG ESP MicroPython Wrapper
-This is a work in progress and it is in the early stages. A Release will be publisched soon. In the meantime, you can find firmware images in the actions section.
 
 A very fast and memory-efficient micropython jpeg decoder and encoder. At the moment only the esp port is supported.
 If you are not familiar with building custom firmware, visit the releases page to download firmware that suits your board.
