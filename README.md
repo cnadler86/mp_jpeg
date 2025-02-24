@@ -1,6 +1,6 @@
 # MicroPython JPEG
 
-thus is a work in progress, so documentation might be incorrect. 
+This is a work in progress, so documentation might be incorrec or incomplete. The code and its API might also change.
 
 A very fast and memory-efficient micropython jpeg decoder and encoder. At the moment only the esp port is supported.
 If you are not familiar with building custom firmware, visit the releases page to download firmware that suits your board.
@@ -91,7 +91,7 @@ The following tables present the results of the JPEG decoding and encoding bench
 | RGB888    | 22.45             | 55.74                 |
 | CbYCrY    | 29.75             | 74.57                 |
 
-Block decode will be faster, because DRAM might be used.
+Block decode will be faster, because other RAM-type might be used.
 
 ### Encoder Benchmark
 
