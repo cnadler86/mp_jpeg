@@ -366,8 +366,8 @@ MP_DEFINE_CONST_OBJ_TYPE(
 );
 
 static const mp_rom_map_elem_t jpeg_module_globals_table[] = {
-    {MP_ROM_QSTR(MP_QSTR_decoder), MP_ROM_PTR(&jpeg_decoder_type)},
-    {MP_ROM_QSTR(MP_QSTR_encoder), MP_ROM_PTR(&jpeg_encoder_type)},
+    {MP_ROM_QSTR(MP_QSTR_Decoder), MP_ROM_PTR(&jpeg_decoder_type)},
+    {MP_ROM_QSTR(MP_QSTR_Encoder), MP_ROM_PTR(&jpeg_encoder_type)},
 };
 
 static MP_DEFINE_CONST_DICT(mp_module_jpeg_globals, jpeg_module_globals_table);
