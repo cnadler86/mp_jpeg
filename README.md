@@ -14,13 +14,13 @@ If you are not familiar with building custom firmware, visit the releases page t
   - `rotation`: Rotation angle for decoding (0, 90, 180, 270). Default 0.
   - `block`: Enable block decoding (default: `False`).
 
-- `get_block_counts(jpeg_data)`: Prepares the JPEG data for decoding and returns the number of blocks. Only needed in case of block=True. 
+- `get_block_counts(jpeg_data)`: Returns the number of blocks that the decoder will need to decode the full image. Only needed in case of block==True. 
   - `jpeg_data`: JPEG data to decode.
 
-- `decode(jpeg_data)`: Decodes the JPEG image and returns the decoded image.
+- `decode(jpeg_data)`: Decodes the JPEG image and returns the decoded image. With block==True, it decodes the next block of the JPEG image and returns the decoded block. The decoder will give you a block of full width and the height will be either 8 or 16 pixels. You can estimate the height by `image_height // decoder.get_block_counts()`
   - `jpeg_data`: JPEG data to decode.
 
-- `decode_block(jpeg_data)`: Decodes the next block of the JPEG image and returns the decoded block. The decoder will give you a block of full width and the height will be either 8 or 16 pixels. You can estimate it by `image_height // decoder.get_block_counts()`
+- `decode_block(jpeg_data)`: 
   - `jpeg_data`: JPEG data to decode.
 
 ### Example

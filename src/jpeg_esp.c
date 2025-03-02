@@ -126,7 +126,7 @@ static mp_obj_t jpeg_decoder_make_new(const mp_obj_type_t *type, size_t n_args, 
     return MP_OBJ_FROM_PTR(self);
 }
 
-static mp_obj_t jpeg_decoder_prepare(mp_obj_t self_in, mp_obj_t jpeg_data) {
+static jpeg_decoder_obj_t* jpeg_decoder_prepare(mp_obj_t self_in, mp_obj_t jpeg_data) {
     jpeg_decoder_obj_t *self = MP_OBJ_TO_PTR(self_in);
     mp_buffer_info_t bufinfo;
     mp_get_buffer_raise(jpeg_data, &bufinfo, MP_BUFFER_READ);
@@ -166,9 +166,14 @@ static mp_obj_t jpeg_decoder_prepare(mp_obj_t self_in, mp_obj_t jpeg_data) {
             jpeg_err_to_mp_exception(ret, "Failed to get process count");
         }
     }
+    return self;
+}
+
+static mp_obj_t jpeg_decoder_get_block_counts(mp_obj_t self_in, mp_obj_t jpeg_data) {
+    jpeg_decoder_obj_t *self = jpeg_decoder_prepare(self_in, jpeg_data);
     return mp_obj_new_int(self->block_counts);
 }
-static MP_DEFINE_CONST_FUN_OBJ_2(jpeg_decoder_prepare_obj, jpeg_decoder_prepare);
+static MP_DEFINE_CONST_FUN_OBJ_2(jpeg_decoder_get_block_counts_obj, jpeg_decoder_get_block_counts);
 
 // `decode()` methods
 // static mp_obj_t jpeg_decoder_decode(mp_obj_t self_in, mp_obj_t jpeg_data) {
@@ -210,15 +215,10 @@ static MP_DEFINE_CONST_FUN_OBJ_2(jpeg_decoder_prepare_obj, jpeg_decoder_prepare)
 // static MP_DEFINE_CONST_FUN_OBJ_2(jpeg_decoder_decode_obj, jpeg_decoder_decode);
 
 static mp_obj_t jpeg_decoder_decode_block(mp_obj_t self_in, mp_obj_t jpeg_data) {
-    jpeg_decoder_obj_t *self = MP_OBJ_TO_PTR(self_in);
-    mp_buffer_info_t bufinfo;
-    mp_get_buffer_raise(jpeg_data, &bufinfo, MP_BUFFER_READ);
-    jpeg_error_t ret = JPEG_ERR_OK;
-
-    (void)jpeg_decoder_prepare(self_in, jpeg_data);
+    jpeg_decoder_obj_t *self = jpeg_decoder_prepare(self_in, jpeg_data);
     // decode the next block
     if ((self->block_pos < self->block_counts) && (self->block_counts > 0)) {
-        ret = jpeg_dec_process(self->handle, &self->io);
+        jpeg_error_t ret = jpeg_dec_process(self->handle, &self->io);
         if (ret != JPEG_ERR_OK) {
             jpeg_err_to_mp_exception(ret, "JPEG decoding failed");
         }
@@ -249,7 +249,7 @@ static const mp_rom_map_elem_t jpeg_decoder_locals_dict_table[] = {
     // {MP_ROM_QSTR(MP_QSTR_decode), MP_ROM_PTR(&jpeg_decoder_decode_obj)},
     // {MP_ROM_QSTR(MP_QSTR_decode_block), MP_ROM_PTR(&jpeg_decoder_decode_block_obj)},
     {MP_ROM_QSTR(MP_QSTR_decode), MP_ROM_PTR(&jpeg_decoder_decode_block_obj)},
-    {MP_ROM_QSTR(MP_QSTR_get_block_counts), MP_ROM_PTR(&jpeg_decoder_prepare_obj)},
+    {MP_ROM_QSTR(MP_QSTR_get_block_counts), MP_ROM_PTR(&jpeg_decoder_get_block_counts_obj)},
     {MP_ROM_QSTR(MP_QSTR___del__), MP_ROM_PTR(&jpeg_decoder_del_obj)},
     {MP_ROM_QSTR(MP_QSTR___enter__), MP_ROM_PTR(&mp_identity_obj)},
     {MP_ROM_QSTR(MP_QSTR___exit__), MP_ROM_PTR(&jpeg_decoder_del_obj)},
