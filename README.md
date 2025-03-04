@@ -112,8 +112,9 @@ The FPS might vary, depending on the image.
 To build the project, follow these instructions:
 
 - ESP-IDF: I tested it on version 5.2, 5.3 and 5.4, but it might work with other versions.
-Clone the micropython repo and this repo in a folder, e.g. "MyJPEG". I used MicroPython version 1.24 but might work also with older versions.
-You will have to add the ESP JPEG library (I used v0.6.0). To do this, add the following to the dependencies in the respective idf_component.yml file (e.g. in micropython/ports/esp32/main_esp32s3/idf_component.yml):
+- Clone the micropython repo and this repo in a folder, e.g. "MyJPEG". I used MicroPython version 1.24 but might work also with older versions.
+- You will have to add the ESP JPEG library (I used v0.6.0). To do this, add the following to the dependencies in the respective idf_component.yml file (e.g. in micropython/ports/esp32/main_esp32s3/idf_component.yml):
+- 
 ```yaml
 espressif/esp_new_jpeg: "~0.6.0"
 ```
@@ -124,9 +125,12 @@ Alternatively, you can [download the library from the espressif component regist
 ### Build the user module
 To build the project, you could do it the following way:
 
+```bash
 . <path2esp-idf>/esp-idf/export.sh
 cd MyJPEG/micropython/ports/esp32
 make USER_C_MODULES=../../../../mp_jpeg/src/micropython.cmake BOARD=<Your-Board> clean
 make USER_C_MODULES=../../../../mp_jpeg/src/micropython.cmake BOARD=<Your-Board> submodules
 make USER_C_MODULES=../../../../mp_jpeg/src/micropython.cmake BOARD=<Your-Board> all
+```
+
 Micropython and mp_jpeg folders are at the same level. Note that you need those extra "/../"s while been inside the esp32 port folder. If you experience problems, visit [MicroPython external C modules](https://docs.micropython.org/en/latest/develop/cmodules.html).
