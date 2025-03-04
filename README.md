@@ -1,6 +1,7 @@
 # MicroPython JPEG
 
 A very fast and memory-efficient micropython jpeg decoder and encoder. At the moment only the esp port is supported.
+
 If you are not familiar with building custom firmware, visit the [releases](https://github.com/cnadler86/mp_jpeg/releases) page to download firmware that suits your board!
 
 ## Decoder
