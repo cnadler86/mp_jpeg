@@ -76,7 +76,9 @@ static void jpeg_err_to_mp_exception(jpeg_error_t err, const char *msg) {
     }
 }
 
-// structure for the JPEG decoder object
+// type and structure for the JPEG decoder object
+extern const mp_obj_type_t mp_jpeg_decoder_type;
+
 typedef struct _jpeg_decoder_obj_t {
     mp_obj_base_t base;
     jpeg_dec_handle_t handle;
@@ -97,8 +99,7 @@ static mp_obj_t jpeg_decoder_make_new(const mp_obj_type_t *type, size_t n_args, 
     mp_arg_val_t parsed_args[MP_ARRAY_SIZE(allowed_args)];
     mp_arg_parse_all_kw_array(n_args, n_kw, args, MP_ARRAY_SIZE(allowed_args), allowed_args, parsed_args);
     
-    jpeg_decoder_obj_t *self = mp_obj_malloc_with_finaliser(jpeg_decoder_obj_t, type);
-    self->base.type = type;
+    jpeg_decoder_obj_t *self = mp_obj_malloc_with_finaliser(jpeg_decoder_obj_t, &mp_jpeg_decoder_type);
     self->io.outbuf = NULL;
     self->io.out_size = 0;
     self->block_pos = 0;
@@ -258,7 +259,7 @@ static const mp_rom_map_elem_t jpeg_decoder_locals_dict_table[] = {
 static MP_DEFINE_CONST_DICT(jpeg_decoder_locals_dict, jpeg_decoder_locals_dict_table);
 
 MP_DEFINE_CONST_OBJ_TYPE(
-    jpeg_decoder_type,
+    mp_jpeg_decoder_type,
     MP_QSTR_Decoder,
     MP_TYPE_FLAG_NONE,
     make_new, jpeg_decoder_make_new,
@@ -267,7 +268,9 @@ MP_DEFINE_CONST_OBJ_TYPE(
 
 // Encoder object
 
-// structure for the JPEG encoder object
+// type structure for the JPEG encoder object
+extern const mp_obj_type_t mp_jpeg_encoder_type;
+
 typedef struct _jpeg_encoder_obj_t {
     mp_obj_base_t base;
     jpeg_enc_handle_t jpeg_enc;
@@ -289,8 +292,7 @@ static mp_obj_t jpeg_encoder_make_new(const mp_obj_type_t *type, size_t n_args, 
     mp_arg_val_t parsed_args[MP_ARRAY_SIZE(allowed_args)];
     mp_arg_parse_all_kw_array(n_args, n_kw, args, MP_ARRAY_SIZE(allowed_args), allowed_args, parsed_args);
 
-    jpeg_encoder_obj_t *self = mp_obj_malloc_with_finaliser(jpeg_encoder_obj_t, type);
-    self->base.type = type;
+    jpeg_encoder_obj_t *self = mp_obj_malloc_with_finaliser(jpeg_encoder_obj_t, &mp_jpeg_encoder_type);
     self->jpeg_enc = NULL;
 
     self->config = (jpeg_enc_config_t)DEFAULT_JPEG_ENC_CONFIG();
@@ -358,7 +360,7 @@ static const mp_rom_map_elem_t jpeg_encoder_locals_dict_table[] = {
 static MP_DEFINE_CONST_DICT(jpeg_encoder_locals_dict, jpeg_encoder_locals_dict_table);
 
 MP_DEFINE_CONST_OBJ_TYPE(
-    jpeg_encoder_type,
+    mp_jpeg_encoder_type,
     MP_QSTR_Encoder,
     MP_TYPE_FLAG_NONE,
     make_new, jpeg_encoder_make_new,
@@ -366,8 +368,8 @@ MP_DEFINE_CONST_OBJ_TYPE(
 );
 
 static const mp_rom_map_elem_t jpeg_module_globals_table[] = {
-    {MP_ROM_QSTR(MP_QSTR_Decoder), MP_ROM_PTR(&jpeg_decoder_type)},
-    {MP_ROM_QSTR(MP_QSTR_Encoder), MP_ROM_PTR(&jpeg_encoder_type)},
+    {MP_ROM_QSTR(MP_QSTR_Decoder), MP_ROM_PTR(&mp_jpeg_decoder_type)},
+    {MP_ROM_QSTR(MP_QSTR_Encoder), MP_ROM_PTR(&mp_jpeg_encoder_type)},
 };
 
 static MP_DEFINE_CONST_DICT(mp_module_jpeg_globals, jpeg_module_globals_table);
