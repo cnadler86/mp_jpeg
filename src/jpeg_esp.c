@@ -123,11 +123,13 @@ static mp_obj_t jpeg_decoder_make_new(const mp_obj_type_t *type, size_t n_args, 
     }
 
     if (parsed_args[ARG_scale_width].u_int > 0 && parsed_args[ARG_scale_height].u_int > 0) {
-        self->config.scale = {.width = parsed_args[ARG_scale_width].u_int, .height = parsed_args[ARG_scale_height].u_int};
+        self->config.scale.width = parsed_args[ARG_scale_width].u_int;
+        self->config.scale.height = parsed_args[ARG_scale_height].u_int;
     }
     
     if (parsed_args[ARG_clipper_width].u_int > 0 && parsed_args[ARG_clipper_height].u_int > 0) {
-        self->config.clipper = {.width = parsed_args[ARG_clipper_width].u_int, .height = parsed_args[ARG_clipper_height].u_int};
+        self->config.clipper.width = parsed_args[ARG_clipper_width].u_int;
+        self->config.clipper.height = parsed_args[ARG_clipper_height].u_int;
     }
 
     jpeg_error_t ret = jpeg_dec_open(&self->config, &self->handle);
