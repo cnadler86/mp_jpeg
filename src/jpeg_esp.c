@@ -94,8 +94,12 @@ static mp_obj_t jpeg_decoder_make_new(const mp_obj_type_t *type, size_t n_args, 
         { MP_QSTR_rotation, MP_ARG_KW_ONLY | MP_ARG_INT, {.u_int = 0} },
         { MP_QSTR_format, MP_ARG_KW_ONLY | MP_ARG_OBJ, {.u_obj = mp_const_none} },
         { MP_QSTR_block, MP_ARG_KW_ONLY | MP_ARG_BOOL, {.u_bool = false} },
+        { MP_QSTR_scale_width, MP_ARG_KW_ONLY | MP_ARG_INT, {.u_int = 0} },
+        { MP_QSTR_scale_height, MP_ARG_KW_ONLY | MP_ARG_INT, {.u_int = 0} },
+        { MP_QSTR_clipper_width, MP_ARG_KW_ONLY | MP_ARG_INT, {.u_int = 0} },
+        { MP_QSTR_clipper_height, MP_ARG_KW_ONLY | MP_ARG_INT, {.u_int = 0} },
     };
-
+    enum { ARG_rotation, ARG_format, ARG_block, ARG_scale_width, ARG_scale_height, ARG_clipper_width, ARG_clipper_height };
     mp_arg_val_t parsed_args[MP_ARRAY_SIZE(allowed_args)];
     mp_arg_parse_all_kw_array(n_args, n_kw, args, MP_ARRAY_SIZE(allowed_args), allowed_args, parsed_args);
     
@@ -107,17 +111,25 @@ static mp_obj_t jpeg_decoder_make_new(const mp_obj_type_t *type, size_t n_args, 
     self->handle = NULL;
 
     self->config = (jpeg_dec_config_t)DEFAULT_JPEG_DEC_CONFIG();
-    self->config.block_enable = parsed_args[2].u_bool;
-    if (parsed_args[0].u_obj != mp_const_none) {
-        self->config.rotate = jpeg_get_rotation_code(parsed_args[0].u_int);
+    self->config.block_enable = parsed_args[ARG_block].u_bool;
+    if (parsed_args[ARG_rotation].u_obj != mp_const_none) {
+        self->config.rotate = jpeg_get_rotation_code(parsed_args[ARG_rotation].u_int);
         if (self->config.block_enable && (self->config.rotate != JPEG_ROTATE_0D)) {
             mp_raise_msg(&mp_type_ValueError, MP_ERROR_TEXT("Block decoding is only supported for rotation 0"));
         }
     }
-    if (parsed_args[1].u_obj != mp_const_none) {
-        self->config.output_type = jpeg_get_format_code(mp_obj_str_get_str(parsed_args[1].u_obj));
+    if (parsed_args[ARG_format].u_obj != mp_const_none) {
+        self->config.output_type = jpeg_get_format_code(mp_obj_str_get_str(parsed_args[ARG_format].u_obj));
+    }
+
+    if (parsed_args[ARG_scale_width].u_int > 0 && parsed_args[ARG_scale_height].u_int > 0) {
+        self->config.scale = {.width = parsed_args[ARG_scale_width].u_int, .height = parsed_args[ARG_scale_height].u_int};
     }
     
+    if (parsed_args[ARG_clipper_width].u_int > 0 && parsed_args[ARG_clipper_height].u_int > 0) {
+        self->config.clipper = {.width = parsed_args[ARG_clipper_width].u_int, .height = parsed_args[ARG_clipper_height].u_int};
+    }
+
     jpeg_error_t ret = jpeg_dec_open(&self->config, &self->handle);
     if (ret != JPEG_ERR_OK) {
         jpeg_err_to_mp_exception(ret, "Failed to initialize JPEG decoder object");

@@ -12,6 +12,7 @@ If you are not familiar with building custom firmware, visit the [releases](http
   - `format`: Pixel format for output (`RGB565_BE`, `RGB565_LE`, `CbYCrY`, `RGB888`).
   - `rotation`: Rotation angle for decoding (0, 90, 180, 270). Default 0.
   - `block`: Enable block decoding (default: `False`).
+  - `scale_width` and `scale_height`: Resize the output image to the prvided scale. Note: the scale needs to be consistent with the input image and be a multiple of 8.
 
 - `get_block_counts(jpeg_data)`: Returns the number of blocks that the decoder will need to decode the full image. Only needed in case of block==True. 
   - `jpeg_data`: JPEG data to decode.
