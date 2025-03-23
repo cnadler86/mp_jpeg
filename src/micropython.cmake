@@ -1,10 +1,3 @@
-function(check_and_register_component target component)
-  get_target_property(LIBRARIES ${target} INTERFACE_LINK_LIBRARIES)
-  if(NOT "${LIBRARIES}" MATCHES "${component}")
-    target_link_libraries(${target} INTERFACE ${component})
-  endif()
-endfunction()
-
 add_library(usermod_mp_jpeg INTERFACE)
 
 add_dependencies(usermod_mp_jpeg esp_new_jpeg)
@@ -37,4 +30,4 @@ elseif(EXISTS "${IDF_PATH}/components/esp_new_jpeg" OR EXISTS "${IDF_PATH}/compo
     endif()
 endif()
 
-check_and_register_component(usermod usermod_mp_jpeg)
+target_link_libraries(usermod INTERFACE usermod_mp_jpeg)
