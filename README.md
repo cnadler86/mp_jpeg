@@ -21,9 +21,6 @@ If you are not familiar with building custom firmware, visit the [releases](http
 - `decode(jpeg_data)`: Decodes the JPEG image and returns the decoded image. With block==True, it decodes the next block of the JPEG image and returns the decoded block. The decoder will give you a block of full width and the height will be either 8 or 16 pixels. You can estimate the height by `image_height // decoder.get_block_counts()`
   - `jpeg_data`: JPEG data to decode.
 
-- `decode_block(jpeg_data)`: 
-  - `jpeg_data`: JPEG data to decode.
-
 ### Example
 
 ```python
