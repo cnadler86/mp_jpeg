@@ -86,6 +86,7 @@ typedef struct _jpeg_decoder_obj_t {
     jpeg_dec_io_t io;
     int block_pos;       // position of the current block
     int block_counts;    // total number of blocks
+    bool return_bytes;   // whether to return bytes or memoryview
 } jpeg_decoder_obj_t;
 
 // Consturctor function for the JPEG decoder object
@@ -98,8 +99,9 @@ static mp_obj_t jpeg_decoder_make_new(const mp_obj_type_t *type, size_t n_args, 
         { MP_QSTR_scale_height, MP_ARG_KW_ONLY | MP_ARG_INT, {.u_int = 0} },
         { MP_QSTR_clipper_width, MP_ARG_KW_ONLY | MP_ARG_INT, {.u_int = 0} },
         { MP_QSTR_clipper_height, MP_ARG_KW_ONLY | MP_ARG_INT, {.u_int = 0} },
+        { MP_QSTR_return_bytes, MP_ARG_KW_ONLY | MP_ARG_BOOL, {.u_bool = false} },
     };
-    enum { ARG_rotation, ARG_format, ARG_block, ARG_scale_width, ARG_scale_height, ARG_clipper_width, ARG_clipper_height };
+    enum { ARG_rotation, ARG_format, ARG_block, ARG_scale_width, ARG_scale_height, ARG_clipper_width, ARG_clipper_height, ARG_return_bytes };
     mp_arg_val_t parsed_args[MP_ARRAY_SIZE(allowed_args)];
     mp_arg_parse_all_kw_array(n_args, n_kw, args, MP_ARRAY_SIZE(allowed_args), allowed_args, parsed_args);
     
@@ -130,6 +132,12 @@ static mp_obj_t jpeg_decoder_make_new(const mp_obj_type_t *type, size_t n_args, 
     if (parsed_args[ARG_clipper_width].u_int > 0 && parsed_args[ARG_clipper_height].u_int > 0) {
         self->config.clipper.width = parsed_args[ARG_clipper_width].u_int;
         self->config.clipper.height = parsed_args[ARG_clipper_height].u_int;
+    }
+
+    if (parsed_args[ARG_return_bytes].u_bool) {
+        self->return_bytes = true;
+    } else {
+        self->return_bytes = false;
     }
 
     jpeg_error_t ret = jpeg_dec_open(&self->config, &self->handle);
@@ -238,6 +246,10 @@ static mp_obj_t jpeg_decoder_decode_block(mp_obj_t self_in, mp_obj_t jpeg_data) 
             jpeg_err_to_mp_exception(ret, "JPEG decoding failed");
         }
         self->block_pos++;
+        
+        if (self->return_bytes) {
+            return mp_obj_new_bytes(self->io.outbuf, self->io.out_size);
+        }
         return mp_obj_new_memoryview(MP_BUFFER_READ, self->io.out_size, self->io.outbuf);
     } else {
         return mp_const_none;
