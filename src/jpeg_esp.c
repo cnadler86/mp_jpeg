@@ -82,7 +82,6 @@ extern const mp_obj_type_t mp_jpeg_decoder_type;
 typedef struct _jpeg_decoder_obj_t {
     mp_obj_base_t base;
     jpeg_dec_handle_t handle;
-    jpeg_dec_config_t config;
     jpeg_dec_io_t io;
     int block_pos;       // position of the current block
     int block_counts;    // total number of blocks
@@ -112,26 +111,33 @@ static mp_obj_t jpeg_decoder_make_new(const mp_obj_type_t *type, size_t n_args, 
     self->block_counts = 0;
     self->handle = NULL;
 
-    self->config = (jpeg_dec_config_t)DEFAULT_JPEG_DEC_CONFIG();
-    self->config.block_enable = parsed_args[ARG_block].u_bool;
+    jpeg_dec_config_t config = (jpeg_dec_config_t)DEFAULT_JPEG_DEC_CONFIG();
+    config.block_enable = parsed_args[ARG_block].u_bool;
     if (parsed_args[ARG_rotation].u_obj != mp_const_none) {
-        self->config.rotate = jpeg_get_rotation_code(parsed_args[ARG_rotation].u_int);
-        if (self->config.block_enable && (self->config.rotate != JPEG_ROTATE_0D)) {
-            mp_raise_msg(&mp_type_ValueError, MP_ERROR_TEXT("Block decoding is only supported for rotation 0"));
-        }
+        config.rotate = jpeg_get_rotation_code(parsed_args[ARG_rotation].u_int);
     }
     if (parsed_args[ARG_format].u_obj != mp_const_none) {
-        self->config.output_type = jpeg_get_format_code(mp_obj_str_get_str(parsed_args[ARG_format].u_obj));
+        config.output_type = jpeg_get_format_code(mp_obj_str_get_str(parsed_args[ARG_format].u_obj));
+    }
+    if (parsed_args[ARG_scale_width].u_int > 0 && parsed_args[ARG_scale_height].u_int > 0) {
+        config.scale.width = parsed_args[ARG_scale_width].u_int;
+        config.scale.height = parsed_args[ARG_scale_height].u_int;
+    }
+    if (parsed_args[ARG_clipper_width].u_int > 0 && parsed_args[ARG_clipper_height].u_int > 0) {
+        config.clipper.width = parsed_args[ARG_clipper_width].u_int;
+        config.clipper.height = parsed_args[ARG_clipper_height].u_int;
     }
 
-    if (parsed_args[ARG_scale_width].u_int > 0 && parsed_args[ARG_scale_height].u_int > 0) {
-        self->config.scale.width = parsed_args[ARG_scale_width].u_int;
-        self->config.scale.height = parsed_args[ARG_scale_height].u_int;
-    }
-    
-    if (parsed_args[ARG_clipper_width].u_int > 0 && parsed_args[ARG_clipper_height].u_int > 0) {
-        self->config.clipper.width = parsed_args[ARG_clipper_width].u_int;
-        self->config.clipper.height = parsed_args[ARG_clipper_height].u_int;
+    if (config.block_enable) {
+        if (config.rotate != JPEG_ROTATE_0D) {
+            mp_raise_msg(&mp_type_ValueError, MP_ERROR_TEXT("Block decoding is only supported for rotation 0"));
+        }
+        if (config.scale.width != 0 || config.scale.height != 0) {
+            mp_raise_msg(&mp_type_ValueError, MP_ERROR_TEXT("Block decoding does not support scaling"));
+        }
+        if (config.clipper.width != 0 || config.clipper.height != 0) {
+            mp_raise_msg(&mp_type_ValueError, MP_ERROR_TEXT("Block decoding does not support clipping"));
+        }
     }
 
     if (parsed_args[ARG_return_bytes].u_bool) {
@@ -140,7 +146,7 @@ static mp_obj_t jpeg_decoder_make_new(const mp_obj_type_t *type, size_t n_args, 
         self->return_bytes = false;
     }
 
-    jpeg_error_t ret = jpeg_dec_open(&self->config, &self->handle);
+    jpeg_error_t ret = jpeg_dec_open(&config, &self->handle);
     if (ret != JPEG_ERR_OK) {
         jpeg_err_to_mp_exception(ret, "Failed to initialize JPEG decoder object");
     }
@@ -240,7 +246,7 @@ static MP_DEFINE_CONST_FUN_OBJ_2(jpeg_decoder_get_block_counts_obj, jpeg_decoder
 static mp_obj_t jpeg_decoder_decode_block(mp_obj_t self_in, mp_obj_t jpeg_data) {
     jpeg_decoder_obj_t *self = jpeg_decoder_prepare(self_in, jpeg_data);
     // decode the next block
-    if ((self->block_pos < self->block_counts) && (self->block_counts > 0)) {
+    if (self->block_pos < self->block_counts) {
         jpeg_error_t ret = jpeg_dec_process(self->handle, &self->io);
         if (ret != JPEG_ERR_OK) {
             jpeg_err_to_mp_exception(ret, "JPEG decoding failed");
@@ -321,21 +327,21 @@ static mp_obj_t jpeg_encoder_make_new(const mp_obj_type_t *type, size_t n_args, 
     jpeg_encoder_obj_t *self = mp_obj_malloc_with_finaliser(jpeg_encoder_obj_t, &mp_jpeg_encoder_type);
     self->jpeg_enc = NULL;
 
-    self->config = (jpeg_enc_config_t)DEFAULT_JPEG_ENC_CONFIG();
-    self->config.height = parsed_args[0].u_int;
-    self->config.width = parsed_args[1].u_int;
-    self->config.quality = parsed_args[3].u_int;
-    self->config.rotate = jpeg_get_rotation_code(parsed_args[4].u_int);
+    jpeg_enc_config_t config = (jpeg_enc_config_t)DEFAULT_JPEG_ENC_CONFIG();
+    config.height = parsed_args[0].u_int;
+    config.width = parsed_args[1].u_int;
+    config.quality = parsed_args[3].u_int;
+    config.rotate = jpeg_get_rotation_code(parsed_args[4].u_int);
     if (parsed_args[2].u_obj != mp_const_none) {
-        self->config.src_type = jpeg_get_format_code(mp_obj_str_get_str(parsed_args[2].u_obj));
+        config.src_type = jpeg_get_format_code(mp_obj_str_get_str(parsed_args[2].u_obj));
     }
 
-    jpeg_error_t ret = jpeg_enc_open(&self->config, &self->jpeg_enc);
+    jpeg_error_t ret = jpeg_enc_open(&config, &self->jpeg_enc);
     if (ret != JPEG_ERR_OK) {
         jpeg_err_to_mp_exception(ret, "Failed to initialize JPEG encoder object");
     }
 
-    self->workbuf_size = self->config.width * self->config.height;
+    self->workbuf_size = config.width * config.height;
     self->workbuf = (uint8_t *)calloc(1, self->workbuf_size);
     if (self->workbuf == NULL) {
         mp_raise_msg(&mp_type_MemoryError, MP_ERROR_TEXT("Failed to allocate work buffer"));
