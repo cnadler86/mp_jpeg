@@ -3,8 +3,6 @@ import jpeg
 import gc
 
 Nr = 100
-Height = 240
-Width = 320
 with open(f'bigbuckbunny-320x240.jpg', mode="rb") as f:
     Img = f.read()
 
@@ -22,16 +20,18 @@ def decoder():
         
         Decoder = jpeg.Decoder(format=format, rotation=0, block=True)
         start = ticks_ms()
-        blocks = Decoder.get_block_counts(Img)
+        Info = Decoder.get_img_info(Img)
+        blocks = Info[2]
         for _ in range(Nr):
             for i in range(blocks):
                 ImgBlock = Decoder.decode(Img)
         print(f"FPS block decode ({blocks}): {Nr * 1000 / (ticks_ms() - start):.2f}")
 
         bytes_per_pixel = 2 if format in ('RGB565_BE', 'RGB565_LE') else 3
-        framebuffer = bytearray(Width * Height * bytes_per_pixel)
         start = ticks_ms()
-        blocks = Decoder.get_block_counts(Img)
+        Info = Decoder.get_img_info(Img)
+        framebuffer = bytearray(Info[0] * Info[1] * bytes_per_pixel)
+        blocks = Info[2]
         for _ in range(Nr):
             for i in range(blocks):
                 ImgBlock = Decoder.decode(Img)
@@ -41,12 +41,13 @@ def decoder():
 def encoder():
     print("\nEncoder Benchmark")
     Decoder = jpeg.Decoder(format='RGB888', rotation=0)
+    Info = Decoder.get_img_info(Img)
     ImgDec = bytes(Decoder.decode(Img))
     del Decoder
     gc.collect()
     for quality in (100, 90, 80, 70, 60):
         print(f"\nQuality: {quality}")
-        Encoder = jpeg.Encoder(format='RGB888', quality=quality, height=Height, width=Width)
+        Encoder = jpeg.Encoder(format='RGB888', quality=quality, height=Info[1], width=Info[0])
         start = ticks_ms()
         for _ in range(Nr):
             ImgEnc = Encoder.encode(ImgDec)

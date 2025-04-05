@@ -16,10 +16,10 @@ If you are not familiar with building custom firmware, visit the [releases](http
   - `clipper_width` and `clipper_height`: This will cut the output image to the specified width and/or height. The clipper_height and clipper_width require integer multiples of 8. The resolution of clipper should be less or equal than scale.
   - `return_bytes`: if true, the decoder return a bytes-object, otherwise a memoryview, default is false.
 
-- `get_block_counts(jpeg_data)`: Returns the number of blocks that the decoder will need to decode the full image. Only needed in case of block==True. 
+- `get_img_info(jpeg_data)`: Returns a list containing the width and height. If the decoder was constructed with `block` enabled, then it will also return the number of blocks that the decoder will need to decode the full image and the heigh of each block (eihter 8 or 16). 
   - `jpeg_data`: JPEG data to decode.
 
-- `decode(jpeg_data)`: Decodes the JPEG image and returns the decoded image. With block==True, it decodes the next block of the JPEG image and returns the decoded block. The decoder will give you a block of full width and the height will be either 8 or 16 pixels. You can estimate the height by `image_height // decoder.get_block_counts()`
+- `decode(jpeg_data)`: Decodes the JPEG image and returns the decoded image. With block==True, it decodes the next block of the JPEG image and returns the decoded block. The decoder will give you a block of full width and the height will be either 8 or 16 pixels. You can get the block height by `get_img_info`
   - `jpeg_data`: JPEG data to decode.
 
 ### Example
@@ -115,10 +115,10 @@ To build the project, follow these instructions:
 - You will have to add the ESP JPEG library (I used v0.6.0). To do this, add the following to the dependencies in the respective idf_component.yml file (e.g. in micropython/ports/esp32/main_esp32s3/idf_component.yml):
 
 ```yaml
-espressif/esp_new_jpeg: "~0.6.0"
+espressif/esp_new_jpeg: "~0.6.1"
 ```
 
-Alternatively, you can [download the library from the espressif component registry](https://components.espressif.com/components/espressif/esp_new_jpeg/versions/0.6.0?language=en) and unzip the data inside the esp-idf/components folder instead of altering the idf_component.yml file. In this case you might need to rename the folder to "esp_new_jpeg".
+Alternatively, you can [download the library from the espressif component registry](https://components.espressif.com/components/espressif/esp_new_jpeg/versions/0.6.1?language=en) and unzip the data inside the esp-idf/components folder instead of altering the idf_component.yml file. In this case you might need to rename the folder to "esp_new_jpeg".
 
 
 ### Build the user module
