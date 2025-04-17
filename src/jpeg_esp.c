@@ -1,10 +1,47 @@
 #include "py/runtime.h"
 #include "py/obj.h"
-// #include "py/objarray.h"
 #include "esp_jpeg_common.h"
 #include "esp_jpeg_dec.h"
 #include "esp_jpeg_enc.h"
-#include "py/mphal.h" 
+#include "py/mphal.h"
+#include "freertos/FreeRTOS.h"
+#include "freertos/task.h"
+#include "freertos/queue.h"
+#include "freertos/idf_additions.h"
+
+// Stream decoder structure to hold decoded frame data
+typedef struct {
+    mp_obj_t jpeg_data;      // JPEG frame as memoryview
+    uint8_t *decoded_data;   // Decoded image data
+    size_t decoded_len;      // Length of decoded data
+} stream_frame_t;
+
+// Queue handle for decoded frames
+static QueueHandle_t frame_queue = NULL;
+static TaskHandle_t decode_task_handle = NULL;
+#define QUEUE_SIZE 2
+#define STACK_SIZE 8192
+
+// Task function prototype
+static void decode_task(void *arg);
+
+// Helper function to call camera methods
+static mp_obj_t call_camera_method(mp_obj_t camera, const char* method_name) {
+    // Get type dictionary
+    mp_obj_t type_dict = MP_OBJ_TYPE_GET_SLOT(mp_obj_get_type(camera), locals_dict);
+    if (type_dict == MP_OBJ_NULL) {
+        return MP_OBJ_NULL;
+    }
+    
+    // Get method from dictionary
+    mp_obj_t method = mp_obj_dict_get(type_dict, MP_OBJ_NEW_QSTR(qstr_from_str(method_name)));
+    if (method == MP_OBJ_NULL) {
+        return MP_OBJ_NULL;
+    }
+
+    // Call method with no arguments
+    return mp_call_function_1(method, camera);
+}
 
 // Helper functions
 static int jpeg_get_format_code(const char *format_str) {
@@ -88,7 +125,71 @@ typedef struct _jpeg_decoder_obj_t {
     int block_pos;       // position of the current block
     int block_counts;    // total number of blocks
     bool return_bytes;   // whether to return bytes or a memoryview
+    mp_obj_t camera_obj; // Camera object reference
 } jpeg_decoder_obj_t;
+
+// Stream decoding task function
+static void decode_task(void *arg) {
+    jpeg_decoder_obj_t *decoder = (jpeg_decoder_obj_t *)arg;
+    mp_obj_t camera = decoder->camera_obj;  // Camera object reference
+    stream_frame_t frame;
+
+    while (1) {
+        // Check for new frame using camera frame_available method
+        mp_obj_t frame_available = call_camera_method(camera, "frame_available");
+        if (!mp_obj_is_true(frame_available)) {
+            vTaskDelay(pdMS_TO_TICKS(10));
+            continue;
+        }
+
+        // Get frame using camera capture method
+        mp_obj_t captured = call_camera_method(camera, "capture");
+        if (captured == mp_const_none) {
+            vTaskDelay(pdMS_TO_TICKS(10));
+            continue;
+        }
+
+        // Extract buffer info from memoryview object
+        mp_buffer_info_t bufinfo;
+        mp_get_buffer_raise(captured, &bufinfo, MP_BUFFER_READ);
+
+        // Setup decoder input
+        decoder->io.inbuf = bufinfo.buf;
+        decoder->io.inbuf_len = bufinfo.len;
+
+        // Parse header and prepare decoder
+        jpeg_error_t ret = jpeg_dec_parse_header(decoder->handle, &decoder->io, &decoder->out_info);
+        if (ret == JPEG_ERR_OK) {
+            int output_len = 0;
+            ret = jpeg_dec_get_outbuf_len(decoder->handle, &output_len);
+            if (ret == JPEG_ERR_OK && output_len > 0) {
+                frame.decoded_data = jpeg_calloc_align(output_len, 16);
+                if (frame.decoded_data) {
+                    frame.decoded_len = output_len;
+                    decoder->io.outbuf = frame.decoded_data;
+                    decoder->io.out_size = output_len;
+                    frame.jpeg_data = captured;  // Store original JPEG frame
+
+                    // Decode frame
+                    ret = jpeg_dec_process(decoder->handle, &decoder->io);
+                    if (ret == JPEG_ERR_OK) {
+                        // Try to send to queue, timeout after 10ms
+                        if (xQueueSend(frame_queue, &frame, pdMS_TO_TICKS(10)) != pdTRUE) {
+                            // Queue full, free memory
+                            jpeg_free_align(frame.decoded_data);
+                            call_camera_method(camera, "free_buffer");
+                        }
+                        continue;
+                    }
+                }
+                if (frame.decoded_data) {
+                    jpeg_free_align(frame.decoded_data);
+                }
+            }
+        }
+        call_camera_method(camera, "free_buffer");
+    }
+}
 
 // Consturctor function for the JPEG decoder object
 static mp_obj_t jpeg_decoder_make_new(const mp_obj_type_t *type, size_t n_args, size_t n_kw, const mp_obj_t *args) {
@@ -212,45 +313,100 @@ static mp_obj_t jpeg_decoder_get_img_info(mp_obj_t self_in, mp_obj_t jpeg_data) 
 }
 static MP_DEFINE_CONST_FUN_OBJ_2(jpeg_decoder_get_img_info_obj, jpeg_decoder_get_img_info);
 
+// Initialize stream decoding
+static mp_obj_t jpeg_decoder_init_stream(mp_obj_t self_in, mp_obj_t camera_obj) {
+    jpeg_decoder_obj_t *self = MP_OBJ_TO_PTR(self_in);
+    
+    // Store camera object reference
+    self->camera_obj = camera_obj;
+
+    // Check if queue already exists
+    if (frame_queue != NULL) {
+        mp_raise_msg(&mp_type_RuntimeError, MP_ERROR_TEXT("Stream already initialized"));
+    }
+
+    // Create frame queue
+    frame_queue = xQueueCreate(QUEUE_SIZE, sizeof(stream_frame_t));
+    if (frame_queue == NULL) {
+        mp_raise_msg(&mp_type_MemoryError, MP_ERROR_TEXT("Failed to create frame queue"));
+    }
+
+    // Create decoding task
+    BaseType_t ret = xTaskCreatePinnedToCore(
+        decode_task,
+        "jpeg_decode",
+        STACK_SIZE,
+        self,
+        5,
+        &decode_task_handle,
+        1
+    );
+
+    if (ret != pdPASS) {
+        vQueueDelete(frame_queue);
+        frame_queue = NULL;
+        mp_raise_msg(&mp_type_RuntimeError, MP_ERROR_TEXT("Failed to create decode task"));
+    }
+
+    return mp_const_none;
+}
+static MP_DEFINE_CONST_FUN_OBJ_2(jpeg_decoder_init_stream_obj, jpeg_decoder_init_stream);
+
+// Check if decoded frame is available
+static mp_obj_t jpeg_decoder_frame_available(mp_obj_t self_in) {
+    if (frame_queue == NULL) {
+        return mp_const_false;
+    }
+    return mp_obj_new_bool(uxQueueMessagesWaiting(frame_queue) > 0);
+}
+static MP_DEFINE_CONST_FUN_OBJ_1(jpeg_decoder_frame_available_obj, jpeg_decoder_frame_available);
+
+// Get decoded frame from queue
+static mp_obj_t jpeg_decoder_decode_stream(mp_obj_t self_in) {
+    if (frame_queue == NULL) {
+        mp_raise_msg(&mp_type_RuntimeError, MP_ERROR_TEXT("Stream not initialized"));
+    }
+
+    stream_frame_t frame;
+    if (xQueueReceive(frame_queue, &frame, pdMS_TO_TICKS(10)) == pdTRUE) {
+        // Create tuple with both JPEG and decoded data
+        mp_obj_tuple_t *tuple = MP_OBJ_TO_PTR(mp_obj_new_tuple(2, NULL));
+        
+        // Original JPEG frame
+        tuple->items[0] = frame.jpeg_data;
+        
+        // Decoded data
+        tuple->items[1] = mp_obj_new_memoryview(MP_BUFFER_READ, frame.decoded_len, frame.decoded_data);
+        
+        return MP_OBJ_FROM_PTR(tuple);
+    }
+    return mp_const_none;
+}
+static MP_DEFINE_CONST_FUN_OBJ_1(jpeg_decoder_decode_stream_obj, jpeg_decoder_decode_stream);
+
+// Stop streaming and cleanup
+static mp_obj_t jpeg_decoder_stop_stream(mp_obj_t self_in) {
+    if (decode_task_handle != NULL) {
+        vTaskDelete(decode_task_handle);
+        decode_task_handle = NULL;
+    }
+    if (frame_queue != NULL) {
+        // Clear and delete queue
+        stream_frame_t frame;
+        while (xQueueReceive(frame_queue, &frame, 0) == pdTRUE) {
+            jpeg_free_align(frame.decoded_data);
+            // Free camera buffer by calling free_buffer method
+            mp_obj_t camera = ((jpeg_decoder_obj_t *)MP_OBJ_TO_PTR(self_in))->camera_obj;
+            call_camera_method(camera, "free_buffer");
+        }
+        vQueueDelete(frame_queue);
+        frame_queue = NULL;
+    }
+    return mp_const_none;
+}
+static MP_DEFINE_CONST_FUN_OBJ_1(jpeg_decoder_stop_stream_obj, jpeg_decoder_stop_stream);
+
 // `decode()` methods
-// static mp_obj_t jpeg_decoder_decode(mp_obj_t self_in, mp_obj_t jpeg_data) {
-//     jpeg_decoder_obj_t *self = MP_OBJ_TO_PTR(self_in);
-//     mp_buffer_info_t bufinfo;
-//     mp_get_buffer_raise(jpeg_data, &bufinfo, MP_BUFFER_READ);
-
-//     self->io.inbuf = (uint8_t *)bufinfo.buf;
-//     self->io.inbuf_len = bufinfo.len;
-
-//     jpeg_dec_header_info_t out_info;
-//     jpeg_error_t ret = jpeg_dec_parse_header(self->handle, &self->io, &out_info);
-//     if (ret != JPEG_ERR_OK) {
-//         jpeg_err_to_mp_exception(ret, "JPEG header parsing failed");
-//     }
-    
-//     int new_output_len = (self->self->config.output_type == JPEG_PIXEL_FORMAT_RGB888) ? 
-//                           (out_info.width * out_info.height * 3) : (out_info.width * out_info.height * 2);
-
-//     // If the output buffer size has changed, reallocate the buffer
-//     if (new_output_len != self->io.out_size) {
-//         if (self->io.outbuf) {
-//             jpeg_free_align(self->io.outbuf);
-//         }
-//         self->io.outbuf = jpeg_calloc_align(new_output_len, 16);
-//         if (!self->io.outbuf) {
-//             mp_raise_msg(&mp_type_MemoryError, MP_ERROR_TEXT("Failed to allocate output buffer"));
-//         }
-//         self->io.out_size = new_output_len;
-//     }
-    
-//     ret = jpeg_dec_process(self->handle, &self->io);
-//     if (ret != JPEG_ERR_OK) {
-//         jpeg_err_to_mp_exception(ret, "JPEG decoding failed");
-//     }
-    
-//     return mp_obj_new_memoryview(MP_BUFFER_READ, self->io.out_size, self->io.outbuf);
-// }
-// static MP_DEFINE_CONST_FUN_OBJ_2(jpeg_decoder_decode_obj, jpeg_decoder_decode);
-
 static mp_obj_t jpeg_decoder_decode_block(mp_obj_t self_in, mp_obj_t jpeg_data) {
     jpeg_decoder_obj_t *self = jpeg_decoder_prepare(self_in, jpeg_data);
     // decode the next block
@@ -274,6 +430,10 @@ static MP_DEFINE_CONST_FUN_OBJ_2(jpeg_decoder_decode_block_obj, jpeg_decoder_dec
 // `__del__()` method
 static mp_obj_t jpeg_decoder_del(mp_obj_t self_in) {
     jpeg_decoder_obj_t *self = MP_OBJ_TO_PTR(self_in);
+    
+    // Stop streaming if active
+    jpeg_decoder_stop_stream(self_in);
+    
     if (self->handle) {
         jpeg_dec_close(self->handle);
         self->handle = NULL;
@@ -287,10 +447,12 @@ static mp_obj_t jpeg_decoder_del(mp_obj_t self_in) {
 static MP_DEFINE_CONST_FUN_OBJ_1(jpeg_decoder_del_obj, jpeg_decoder_del);
 
 static const mp_rom_map_elem_t jpeg_decoder_locals_dict_table[] = {
-    // {MP_ROM_QSTR(MP_QSTR_decode), MP_ROM_PTR(&jpeg_decoder_decode_obj)},
-    // {MP_ROM_QSTR(MP_QSTR_decode_block), MP_ROM_PTR(&jpeg_decoder_decode_block_obj)},
     {MP_ROM_QSTR(MP_QSTR_decode), MP_ROM_PTR(&jpeg_decoder_decode_block_obj)},
     {MP_ROM_QSTR(MP_QSTR_get_img_info), MP_ROM_PTR(&jpeg_decoder_get_img_info_obj)},
+    {MP_ROM_QSTR(MP_QSTR_init_stream), MP_ROM_PTR(&jpeg_decoder_init_stream_obj)},
+    {MP_ROM_QSTR(MP_QSTR_frame_available), MP_ROM_PTR(&jpeg_decoder_frame_available_obj)},
+    {MP_ROM_QSTR(MP_QSTR_decode_stream), MP_ROM_PTR(&jpeg_decoder_decode_stream_obj)},
+    {MP_ROM_QSTR(MP_QSTR_stop_stream), MP_ROM_PTR(&jpeg_decoder_stop_stream_obj)},
     {MP_ROM_QSTR(MP_QSTR___del__), MP_ROM_PTR(&jpeg_decoder_del_obj)},
     {MP_ROM_QSTR(MP_QSTR___enter__), MP_ROM_PTR(&mp_identity_obj)},
     {MP_ROM_QSTR(MP_QSTR___exit__), MP_ROM_PTR(&jpeg_decoder_del_obj)},
