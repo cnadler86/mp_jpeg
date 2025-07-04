@@ -8,6 +8,7 @@
 #include "freertos/task.h"
 #include "freertos/queue.h"
 #include "freertos/idf_additions.h"
+#include "esp_log.h"
 
 // Stream decoder structure to hold decoded frame data
 typedef struct {
@@ -144,6 +145,7 @@ static void decode_task(void *arg) {
 
         // Get frame using camera capture method
         mp_obj_t captured = call_camera_method(camera, "capture");
+        ESP_LOGI("JPEG", "Captured frame: %p", captured);
         if (captured == mp_const_none) {
             vTaskDelay(pdMS_TO_TICKS(10));
             continue;
@@ -152,6 +154,7 @@ static void decode_task(void *arg) {
         // Extract buffer info from memoryview object
         mp_buffer_info_t bufinfo;
         mp_get_buffer_raise(captured, &bufinfo, MP_BUFFER_READ);
+        ESP_LOGI("JPEG", "Buffer info: %p, %d", bufinfo.buf, bufinfo.len);
 
         // Setup decoder input
         decoder->io.inbuf = bufinfo.buf;
@@ -159,22 +162,26 @@ static void decode_task(void *arg) {
 
         // Parse header and prepare decoder
         jpeg_error_t ret = jpeg_dec_parse_header(decoder->handle, &decoder->io, &decoder->out_info);
+        ESP_LOGI("JPEG", "Header parsed: %d", ret);
         if (ret == JPEG_ERR_OK) {
             int output_len = 0;
             ret = jpeg_dec_get_outbuf_len(decoder->handle, &output_len);
             if (ret == JPEG_ERR_OK && output_len > 0) {
+                ESP_LOGI("JPEG", "Output buffer length: %d", output_len);
                 frame.decoded_data = jpeg_calloc_align(output_len, 16);
                 if (frame.decoded_data) {
                     frame.decoded_len = output_len;
                     decoder->io.outbuf = frame.decoded_data;
                     decoder->io.out_size = output_len;
                     frame.jpeg_data = captured;  // Store original JPEG frame
-
+                    ESP_LOGI("JPEG", "Decoding frame: %p", frame.jpeg_data);
                     // Decode frame
                     ret = jpeg_dec_process(decoder->handle, &decoder->io);
                     if (ret == JPEG_ERR_OK) {
                         // Try to send to queue, timeout after 10ms
+                        ESP_LOGI("JPEG", "Sending frame to queue: %p", frame.jpeg_data);
                         if (xQueueSend(frame_queue, &frame, pdMS_TO_TICKS(10)) != pdTRUE) {
+                            ESP_LOGI("JPEG", "Queue full, freeing memory");
                             // Queue full, free memory
                             jpeg_free_align(frame.decoded_data);
                             call_camera_method(camera, "free_buffer");
@@ -339,7 +346,7 @@ static mp_obj_t jpeg_decoder_init_stream(mp_obj_t self_in, mp_obj_t camera_obj) 
         self,
         5,
         &decode_task_handle,
-        1
+        0
     );
 
     if (ret != pdPASS) {
