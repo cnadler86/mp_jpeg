@@ -9,7 +9,7 @@ If you are not familiar with building custom firmware, visit the [releases](http
 ### API Reference
 
 - `Decoder(format="RGB888", rotation=0, block=False)`: Creates a new decoder object.
-  - `format`: Pixel format for output (`RGB565_BE`, `RGB565_LE`, `CbYCrY`, `RGB888`).
+  - `pixel_format`: Pixel format for output (`RGB565_BE`, `RGB565_LE`, `CbYCrY`, `RGB888`).
   - `rotation`: Rotation angle for decoding (0, 90, 180, 270). Default 0.
   - `block`: Enable block decoding (default: `False`). Each time decode is called, it outputs 8 or 16 line data depending on the image and output format (see `get_block_counts`). If enabled, scale, clipper and rotation are not supported.
   - `scale_width` and `scale_height`: Resize the output image to the prvided scale. Note: the scale needs to be consistent with the input image and be a multiple of 8.
@@ -28,7 +28,7 @@ If you are not familiar with building custom firmware, visit the [releases](http
 import jpeg
 
 # Create a JPEG decoder object
-decoder = jpeg.Decoder(rotation=180, format="RGB888")
+decoder = jpeg.Decoder(rotation=180, pixel_format="RGB888")
 
 # Prepare the JPEG data for decoding
 jpeg_data = open("path/to/jpeg/image.jpg", "rb").read()
@@ -44,7 +44,7 @@ decoded_image = decoder.decode(jpeg_data)
 - `Encoder(height=240, width=320, format="RGB888", quality=90, rotation=0)`: Creates a new encoder object.
   - `height`: Height of the input image. Required.
   - `width`: Width of the input image. Required.
-  - `format`: Pixel format for input image (RGB888, RGBA, YCbYCr, YCbY2YCrY2, GRAY). Required.
+  - `pixel_format`: Pixel format for input image (RGB888, RGBA, YCbYCr, YCbY2YCrY2, GRAY). Required.
   - `quality`: JPEG quality (1-100). Default 90.
   - `rotation`: Rotation angle for encoding (0, 90, 180, 270). Default 0.
 
@@ -59,7 +59,7 @@ decoded_image = decoder.decode(jpeg_data)
 import jpeg
 
 # Create a JPEG encoder object
-encoder = jpeg.Encoder(format="RGB888", quality=80, rotation=90, width=320, height=240)
+encoder = jpeg.Encoder(pixel_format="RGB888", quality=80, rotation=90, width=320, height=240)
 
 # Encode the image data to JPEG format
 image_data = open("path/to/raw/image.bin", "rb").read()

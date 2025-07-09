@@ -94,7 +94,7 @@ typedef struct _jpeg_decoder_obj_t {
 static mp_obj_t jpeg_decoder_make_new(const mp_obj_type_t *type, size_t n_args, size_t n_kw, const mp_obj_t *args) {
     static const mp_arg_t allowed_args[] = {
         { MP_QSTR_rotation, MP_ARG_KW_ONLY | MP_ARG_INT, {.u_int = 0} },
-        { MP_QSTR_format, MP_ARG_KW_ONLY | MP_ARG_OBJ, {.u_obj = mp_const_none} },
+        { MP_QSTR_pixel_format, MP_ARG_KW_ONLY | MP_ARG_OBJ, {.u_obj = mp_const_none} },
         { MP_QSTR_block, MP_ARG_KW_ONLY | MP_ARG_BOOL, {.u_bool = false} },
         { MP_QSTR_scale_width, MP_ARG_KW_ONLY | MP_ARG_INT, {.u_int = 0} },
         { MP_QSTR_scale_height, MP_ARG_KW_ONLY | MP_ARG_INT, {.u_int = 0} },
@@ -102,7 +102,7 @@ static mp_obj_t jpeg_decoder_make_new(const mp_obj_type_t *type, size_t n_args, 
         { MP_QSTR_clipper_height, MP_ARG_KW_ONLY | MP_ARG_INT, {.u_int = 0} },
         { MP_QSTR_return_bytes, MP_ARG_KW_ONLY | MP_ARG_BOOL, {.u_bool = false} },
     };
-    enum { ARG_rotation, ARG_format, ARG_block, ARG_scale_width, ARG_scale_height, ARG_clipper_width, ARG_clipper_height, ARG_return_bytes };
+    enum { ARG_rotation, ARG_pixel_format, ARG_block, ARG_scale_width, ARG_scale_height, ARG_clipper_width, ARG_clipper_height, ARG_return_bytes };
     mp_arg_val_t parsed_args[MP_ARRAY_SIZE(allowed_args)];
     mp_arg_parse_all_kw_array(n_args, n_kw, args, MP_ARRAY_SIZE(allowed_args), allowed_args, parsed_args);
     
@@ -118,8 +118,8 @@ static mp_obj_t jpeg_decoder_make_new(const mp_obj_type_t *type, size_t n_args, 
     if (parsed_args[ARG_rotation].u_obj != mp_const_none) {
         self->config.rotate = jpeg_get_rotation_code(parsed_args[ARG_rotation].u_int);
     }
-    if (parsed_args[ARG_format].u_obj != mp_const_none) {
-        self->config.output_type = jpeg_get_format_code(mp_obj_str_get_str(parsed_args[ARG_format].u_obj));
+    if (parsed_args[ARG_pixel_format].u_obj != mp_const_none) {
+        self->config.output_type = jpeg_get_format_code(mp_obj_str_get_str(parsed_args[ARG_pixel_format].u_obj));
     }
     if (parsed_args[ARG_scale_width].u_int > 0 && parsed_args[ARG_scale_height].u_int > 0) {
         self->config.scale.width = parsed_args[ARG_scale_width].u_int;
@@ -324,7 +324,7 @@ static mp_obj_t jpeg_encoder_make_new(const mp_obj_type_t *type, size_t n_args, 
     static const mp_arg_t allowed_args[] = {
         { MP_QSTR_height, MP_ARG_REQUIRED | MP_ARG_INT, {.u_int = 0} },
         { MP_QSTR_width, MP_ARG_REQUIRED | MP_ARG_INT, {.u_int = 0} },
-        { MP_QSTR_format, MP_ARG_REQUIRED | MP_ARG_OBJ, {.u_obj = mp_const_none} },
+        { MP_QSTR_pixel_format, MP_ARG_REQUIRED | MP_ARG_OBJ, {.u_obj = mp_const_none} },
         { MP_QSTR_quality, MP_ARG_KW_ONLY | MP_ARG_INT, {.u_int = 90} },
         { MP_QSTR_rotation, MP_ARG_KW_ONLY | MP_ARG_INT, {.u_int = 0} },
     };
