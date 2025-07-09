@@ -110,7 +110,7 @@ jobs:
           - ESP32_GENERIC_S3-SPIRAM_OCT
           - ESP32_GENERIC_S3-FLASH_4M
           - ESP32_GENERIC_C3
-          - ESP32_GENERIC_C6
+#          - ESP32_GENERIC_C6
 
     steps:
      # Get the latest MicroPython release
