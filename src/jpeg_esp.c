@@ -88,6 +88,7 @@ typedef struct _jpeg_decoder_obj_t {
     int block_pos;       // position of the current block
     int block_counts;    // total number of blocks
     bool return_bytes;   // whether to return bytes or a memoryview
+    int outbuf_len;    // length of the output buffer. TODO: Delete after bug in low level driver is corrected
 } jpeg_decoder_obj_t;
 
 // Consturctor function for the JPEG decoder object
@@ -196,6 +197,7 @@ static jpeg_decoder_obj_t* jpeg_decoder_prepare(mp_obj_t self_in, mp_obj_t jpeg_
             jpeg_err_to_mp_exception(ret, "Failed to get process count");
         }
     }
+    self->outbuf_len =  self->io.out_size;
     return self;
 }
 
@@ -262,9 +264,11 @@ static mp_obj_t jpeg_decoder_decode_block(mp_obj_t self_in, mp_obj_t jpeg_data) 
         self->block_pos++;
         
         if (self->return_bytes) {
-            return mp_obj_new_bytes(self->io.outbuf, self->io.out_size);
+            // return mp_obj_new_bytes(self->io.outbuf, self->io.out_size);
+            return mp_obj_new_bytes(self->io.outbuf, self->outbuf_len); // TODO: Delete me
         }
-        return mp_obj_new_memoryview(MP_BUFFER_READ, self->io.out_size, self->io.outbuf);
+        // return mp_obj_new_memoryview(MP_BUFFER_READ, self->io.out_size, self->io.outbuf);
+        return mp_obj_new_memoryview(MP_BUFFER_READ, self->outbuf_len, self->io.outbuf);  // TODO: Delete me
     } else {
         return mp_const_none;
     }    
