@@ -30,4 +30,9 @@ elseif(EXISTS "${IDF_PATH}/components/esp_new_jpeg" OR EXISTS "${IDF_PATH}/compo
     endif()
 endif()
 
+# Module strings are not suitable for compression and may cause size increase
+target_compile_definitions(usermod_mp_jpeg INTERFACE 
+    MICROPY_ROM_TEXT_COMPRESSION=0
+)
+
 target_link_libraries(usermod INTERFACE usermod_mp_jpeg)
