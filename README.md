@@ -44,7 +44,7 @@ decoded_image = decoder.decode(jpeg_data)
 - `Encoder(height=240, width=320, format="RGB888", quality=90, rotation=0)`: Creates a new encoder object.
   - `height`: Height of the input image. Required.
   - `width`: Width of the input image. Required.
-  - `pixel_format`: Pixel format for input image (RGB888, RGBA, YCbYCr, YCbY2YCrY2, GRAY). Required.
+  - `pixel_format`: Pixel format for input image (RGB888, RGB565, RGBA, YCbYCr, YCbY2YCrY2, CbYCrY, GRAY). Required.
   - `quality`: JPEG quality (1-100). Default 90.
   - `rotation`: Rotation angle for encoding (0, 90, 180, 270). Default 0.
 
