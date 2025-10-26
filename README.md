@@ -4,6 +4,13 @@ A very fast and memory-efficient micropython jpeg decoder and encoder. At the mo
 
 If you are not familiar with building custom firmware, visit the [releases](https://github.com/cnadler86/mp_jpeg/releases) page to download firmware that suits your board!
 
+To get the version of the low level driver, you can use the following code:
+
+```python
+import jpeg
+print("JPEG Driver Version:", jpeg.version())
+```
+
 ## Decoder
 
 ### API Reference

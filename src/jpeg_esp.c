@@ -407,9 +407,20 @@ MP_DEFINE_CONST_OBJ_TYPE(
     locals_dict, &jpeg_encoder_locals_dict
 );
 
+#ifndef MP_JPEG_DRIVER_VERSION
+#define MP_JPEG_DRIVER_VERSION "unknown"
+#endif
+
+static mp_obj_t mp_jpeg_driver_version(void) {
+    static const char jpeg_version_str[] = MP_JPEG_DRIVER_VERSION;
+    return mp_obj_new_str(jpeg_version_str, strlen(jpeg_version_str));
+}
+static MP_DEFINE_CONST_FUN_OBJ_0(mp_jpeg_driver_version_obj, mp_jpeg_driver_version);
+
 static const mp_rom_map_elem_t jpeg_module_globals_table[] = {
     {MP_ROM_QSTR(MP_QSTR_Decoder), MP_ROM_PTR(&mp_jpeg_decoder_type)},
     {MP_ROM_QSTR(MP_QSTR_Encoder), MP_ROM_PTR(&mp_jpeg_encoder_type)},
+    {MP_ROM_QSTR(MP_QSTR_version), MP_ROM_PTR(&mp_jpeg_driver_version_obj)},
 };
 
 static MP_DEFINE_CONST_DICT(mp_module_jpeg_globals, jpeg_module_globals_table);
