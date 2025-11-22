@@ -95,7 +95,6 @@ jobs:
           git clone https://github.com/espressif/esp-adf-libs.git
           mv ~/esp-adf-libs/esp_new_jpeg ~/esp_new_jpeg
           rm -rf ~/esp-adf-libs
-          echo "ESP_JPEG_DIR=~/esp_new_jpeg" >> $GITHUB_ENV
 
   # Dynamically create jobs for each board
   build:
@@ -147,9 +146,6 @@ jobs:
       # Build MicroPython for each board
       - name: Build MicroPython
         run: |
-          # Set environment variables for component directories
-          echo "ESP_JPEG_DIR=~/esp_new_jpeg" >> $GITHUB_ENV
-          export ESP_JPEG_DIR=~/esp_new_jpeg
           cd ~/micropython/ports/esp32
           source ~/esp-idf/export.sh
           
@@ -158,9 +154,9 @@ jobs:
           IFS='-' read -r BOARD_NAME BOARD_VARIANT <<< "${BUILD_TARGET}"
           
           if [ -n "${BOARD_VARIANT}" ]; then
-            IDF_CMD="idf.py -D MICROPY_BOARD=$BOARD_NAME -D USER_C_MODULES=${{ github.workspace }}/micropython.cmake -D MICROPY_BOARD_VARIANT=$BOARD_VARIANT -B build-$BUILD_TARGET"
+            IDF_CMD="idf.py -D MICROPY_BOARD=$BOARD_NAME -D USER_C_MODULES=${{ github.workspace }}/micropython.cmake -D MICROPY_BOARD_VARIANT=$BOARD_VARIANT -B build-$BUILD_TARGET -D ESP_JPEG_DIR=$HOME/esp_new_jpeg"
           else
-            IDF_CMD="idf.py -D MICROPY_BOARD=$BOARD_NAME -D USER_C_MODULES=${{ github.workspace }}/micropython.cmake -B build-$BUILD_TARGET"
+            IDF_CMD="idf.py -D MICROPY_BOARD=$BOARD_NAME -D USER_C_MODULES=${{ github.workspace }}/micropython.cmake -B build-$BUILD_TARGET -D ESP_JPEG_DIR=$HOME/esp_new_jpeg"
           fi
           if [ -n "${CUSTOM_MODEL}" ]; then
             echo "FW_NAME=${CUSTOM_MODEL}" >> $GITHUB_ENV
