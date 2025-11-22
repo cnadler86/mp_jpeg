@@ -43,6 +43,7 @@ jobs:
             !~/.espressif/dist/
             ~/.cache/pip/
             ~/micropython/
+            ~/esp_new_jpeg/
           key: mpy-${{ env.MPY_RELEASE }}
           restore-keys: mpy-
 
@@ -85,13 +86,16 @@ jobs:
           echo "Micropython setup successfully"
           source ~/micropython/tools/ci.sh && echo "IDF_VER=$IDF_VER" >> $GITHUB_ENV
 
-      - name: Put relevant component in esp components directory
-        id: copy-components
+      # Clone external components (if not cached)
+      - name: Clone external components
         if: steps.cache_esp_idf.outputs.cache-hit != 'true'
         run: |
           cd ~
+          # Clone esp_new_jpeg
           git clone https://github.com/espressif/esp-adf-libs.git
-          cp -r ~/esp-adf-libs/esp_new_jpeg ~/esp-idf/components/
+          mv ~/esp-adf-libs/esp_new_jpeg ~/esp_new_jpeg
+          rm -rf ~/esp-adf-libs
+          echo "ESP_JPEG_DIR=~/esp_new_jpeg" >> $GITHUB_ENV
 
   # Dynamically create jobs for each board
   build:
@@ -128,6 +132,7 @@ jobs:
             !~/.espressif/dist/
             ~/.cache/pip/
             ~/micropython/
+            ~/esp_new_jpeg/
           key: mpy-${{ env.MPY_RELEASE }}
           restore-keys: mpy-
 
@@ -142,8 +147,9 @@ jobs:
       # Build MicroPython for each board
       - name: Build MicroPython
         run: |
-          # cd ~/esp-idf/components/esp32-camera
-          # CAM_DRIVER=$(git describe --tags --always --dirty)
+          # Set environment variables for component directories
+          echo "ESP_JPEG_DIR=~/esp_new_jpeg" >> $GITHUB_ENV
+          export ESP_JPEG_DIR=~/esp_new_jpeg
           cd ~/micropython/ports/esp32
           source ~/esp-idf/export.sh
           
