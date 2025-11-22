@@ -55,7 +55,6 @@ decoded_image = decoder.decode(jpeg_data)
   - `quality`: JPEG quality (1-100). Default 90.
   - `rotation`: Rotation angle for encoding (0, 90, 180, 270). Default 0.
 
-
 - `encode(img_data)`: Encodes the image data to JPEG format and returns the encoded JPEG data.
   - `img_data`: Raw image data to encode.
   - Returns the bytes of the encoded image.
@@ -127,16 +126,18 @@ espressif/esp_new_jpeg: "^1.0.0"
 
 Alternatively, you can [download the library from the espressif component registry](https://components.espressif.com/components/espressif/esp_new_jpeg/versions/0.6.1?language=en) and unzip the data inside the esp-idf/components folder instead of altering the idf_component.yml file. In this case you might need to rename the folder to "esp_new_jpeg".
 
-
 ### Build the user module
+
 To build the project, you could do it the following way:
 
 ```bash
 . <path2esp-idf>/esp-idf/export.sh
 cd MyJPEG/micropython/ports/esp32
-make USER_C_MODULES=../../../../mp_jpeg/src/micropython.cmake BOARD=<Your-Board> clean
-make USER_C_MODULES=../../../../mp_jpeg/src/micropython.cmake BOARD=<Your-Board> submodules
-make USER_C_MODULES=../../../../mp_jpeg/src/micropython.cmake BOARD=<Your-Board> all
+make USER_C_MODULES=../../../../mp_jpeg/micropython.cmake BOARD=<Your-Board> clean
+make USER_C_MODULES=../../../../mp_jpeg/micropython.cmake BOARD=<Your-Board> submodules
+make USER_C_MODULES=../../../../mp_jpeg/micropython.cmake BOARD=<Your-Board> all
 ```
+
+You can also pass the MP_JPEG_DIR variable to point to the esp_new_jpeg component folder. in ths case you have to build usinf the idf directly.
 
 Micropython and mp_jpeg folders are at the same level. Note that you need those extra "/../"s while been inside the esp32 port folder. If you experience problems, visit [MicroPython external C modules](https://docs.micropython.org/en/latest/develop/cmodules.html).
