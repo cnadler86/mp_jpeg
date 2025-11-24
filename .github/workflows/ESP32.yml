@@ -43,7 +43,6 @@ jobs:
             !~/.espressif/dist/
             ~/.cache/pip/
             ~/micropython/
-            ~/esp_new_jpeg/
           key: mpy-${{ env.MPY_RELEASE }}
           restore-keys: mpy-
 
@@ -86,16 +85,6 @@ jobs:
           echo "Micropython setup successfully"
           source ~/micropython/tools/ci.sh && echo "IDF_VER=$IDF_VER" >> $GITHUB_ENV
 
-      # Clone external components (if not cached)
-      - name: Clone external components
-        if: steps.cache_esp_idf.outputs.cache-hit != 'true'
-        run: |
-          cd ~
-          # Clone esp_new_jpeg
-          git clone https://github.com/espressif/esp-adf-libs.git
-          mv ~/esp-adf-libs/esp_new_jpeg ~/esp_new_jpeg
-          rm -rf ~/esp-adf-libs
-
   # Dynamically create jobs for each board
   build:
     needs: setup-environment
@@ -131,7 +120,6 @@ jobs:
             !~/.espressif/dist/
             ~/.cache/pip/
             ~/micropython/
-            ~/esp_new_jpeg/
           key: mpy-${{ env.MPY_RELEASE }}
           restore-keys: mpy-
 
@@ -154,9 +142,9 @@ jobs:
           IFS='-' read -r BOARD_NAME BOARD_VARIANT <<< "${BUILD_TARGET}"
           
           if [ -n "${BOARD_VARIANT}" ]; then
-            IDF_CMD="idf.py -D MICROPY_BOARD=$BOARD_NAME -D USER_C_MODULES=${{ github.workspace }}/micropython.cmake -D MICROPY_BOARD_VARIANT=$BOARD_VARIANT -B build-$BUILD_TARGET -D ESP_JPEG_DIR=$HOME/esp_new_jpeg"
+            IDF_CMD="idf.py -D MICROPY_BOARD=$BOARD_NAME -D USER_C_MODULES=${{ github.workspace }}/micropython.cmake -D MICROPY_BOARD_VARIANT=$BOARD_VARIANT -B build-$BUILD_TARGET -D EXTRA_COMPONENT_DIRS=${{ github.workspace }}"
           else
-            IDF_CMD="idf.py -D MICROPY_BOARD=$BOARD_NAME -D USER_C_MODULES=${{ github.workspace }}/micropython.cmake -B build-$BUILD_TARGET -D ESP_JPEG_DIR=$HOME/esp_new_jpeg"
+            IDF_CMD="idf.py -D MICROPY_BOARD=$BOARD_NAME -D USER_C_MODULES=${{ github.workspace }}/micropython.cmake -B build-$BUILD_TARGET -D EXTRA_COMPONENT_DIRS=${{ github.workspace }}"
           fi
           if [ -n "${CUSTOM_MODEL}" ]; then
             echo "FW_NAME=${CUSTOM_MODEL}" >> $GITHUB_ENV
