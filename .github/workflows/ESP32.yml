@@ -94,13 +94,15 @@ jobs:
         board:
           - ESP32_GENERIC
           - ESP32_GENERIC-UNICORE
-          - ESP32_GENERIC-OTA
+          # - ESP32_GENERIC-OTA
           - ESP32_GENERIC-SPIRAM
           - ESP32_GENERIC_S2
           - ESP32_GENERIC_S3
           - ESP32_GENERIC_S3-SPIRAM_OCT
+          - ESP32_GENERIC_C2
           - ESP32_GENERIC_C3
 #          - ESP32_GENERIC_C6
+          - ESP32_GENERIC_P4
 
     steps:
      # Get the latest MicroPython release
