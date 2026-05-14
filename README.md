@@ -1,143 +1,300 @@
 # MicroPython JPEG
 
-A very fast and memory-efficient micropython jpeg decoder and encoder. At the moment only the esp port is supported.
+A fast and memory-efficient JPEG decoder/encoder module for MicroPython (ESP port).
 
-If you are not familiar with building custom firmware, visit the [releases](https://github.com/cnadler86/mp_jpeg/releases) page to download firmware that suits your board!
+## Features
+- JPEG **Decoder**: normal decode (full frame) and **block decode** (tile/strip decode)
+- JPEG **Encoder**
+- `decode_into()` supports **zero-copy writing into a user-provided framebuffer**
+- Designed for embedded UI/animation workloads (cooperative scheduling)
 
-To get the version of the low level driver, you can use the following code:
+---
+
+# Getting started
 
 ```python
 import jpeg
 print("JPEG Driver Version:", jpeg.version())
 ```
 
-## Decoder
+---
 
-### API Reference
+# Decoder
 
-- `Decoder(format="RGB888", rotation=0, block=False)`: Creates a new decoder object.
-  - `pixel_format`: Pixel format for output (`RGB565_BE`, `RGB565_LE`, `CbYCrY`, `RGB888`).
-  - `rotation`: Rotation angle for decoding (0, 90, 180, 270). Default 0.
-  - `block`: Enable block decoding (default: `False`). Each time decode is called, it outputs 8 or 16 line data depending on the image and output format (see `get_block_counts`). If enabled, scale, clipper and rotation are not supported.
-  - `scale_width` and `scale_height`: Resize the output image to the prvided scale. Note: the scale needs to be consistent with the input image and be a multiple of 8.
-  - `clipper_width` and `clipper_height`: This will cut the output image to the specified width and/or height. The clipper_height and clipper_width require integer multiples of 8. The resolution of clipper should be less or equal than scale.
-  - `return_bytes`: if true, the decoder return a bytes-object, otherwise a memoryview, default is false.
+## Create a decoder
 
-- `get_img_info(jpeg_data)`: Returns a list containing the width and height. If the decoder was constructed with `block` enabled, then it will also return the number of blocks that the decoder will need to decode the full image and the heigh of each block (eihter 8 or 16). 
-  - `jpeg_data`: JPEG data to decode.
+```python
+decoder = jpeg.Decoder(
+    pixel_format="RGB565_LE",
+    rotation=0,
+    block=False,
+    scale_width=0, scale_height=0,
+    clipper_width=0, clipper_height=0,
+    return_bytes=False,
+)
+```
 
-- `decode(jpeg_data)`: Decodes the JPEG image and returns the decoded image. With block==True, it decodes the next block of the JPEG image and returns the decoded block. The decoder will give you a block of full width and the height will be either 8 or 16 pixels. You can get the block height by `get_img_info`
-  - `jpeg_data`: JPEG data to decode.
+### Parameters
+- `pixel_format`: Output pixel format.
+  - Supported: `RGB565_BE`, `RGB565_LE`, `CbYCrY`, `RGB888`
+- `rotation`: `0`, `90`, `180`, `270`
+- `block`:
+  - `False` (default): normal decode (full image per decode)
+  - `True`: block decode mode (each decode produces one block; usually 8 or 16 lines per block)
+  - If `block=True`: scaling/clipper/rotation are not supported (library limitation)
+- `scale_width`, `scale_height`:
+  - Optional output scaling (must match JPEG constraints and be multiple of 8)
+- `clipper_width`, `clipper_height`:
+  - Optional crop (must be multiple of 8; must be <= scale)
+- `return_bytes`:
+  - `False` (default): `decode()` returns `memoryview`
+  - `True`: `decode()` returns `bytes`
 
-### Example
+---
+
+## get_img_info(jpeg_data)
+
+```python
+info = decoder.get_img_info(jpeg_data)
+```
+
+Returns:
+- normal mode: `[width, height]`
+- block mode: `[width, height, blocks, block_height]`
+
+Where:
+- `blocks` = number of blocks to decode full image
+- `block_height` is usually `8` or `16`
+
+---
+
+## decode(jpeg_data)
+
+```python
+img_or_block = decoder.decode(jpeg_data)
+```
+
+- If `block=False`: returns the full decoded frame
+- If `block=True`: returns the next decoded block (full width, height = 8 or 16 lines)
+- When block decoding is finished:
+  - returns `None`
+
+This API is useful when you want the raw block bytes/memoryview and handle placement/output yourself.
+
+---
+
+## decode_into(jpeg_data, out_buffer, *, blocks=0)  ✅ NEW API
+
+```python
+done = decoder.decode_into(jpeg_data, framebuffer)            # blocks defaults to 0 (FULL)
+done = decoder.decode_into(jpeg_data, framebuffer, blocks=1)  # step
+```
+
+### Goal
+Decode and write directly into a user-provided buffer (framebuffer).  
+This avoids Python slice copies and reduces GC pressure.
+
+### Return value
+- Returns **bool**
+  - `True`: this call completed one full decode round (framebuffer is ready)
+  - `False`: not finished yet (only possible in `block=True` with `blocks>0`)
+
+### blocks parameter (important)
+- `blocks=0` (**default**): **FULL mode**
+  - Continue decoding from the current progress until the frame is complete
+  - Returns `True`
+- `blocks>0`: **STEP mode**
+  - Decode at most `blocks` blocks from current progress
+  - Returns:
+    - `False` if not finished yet
+    - `True` if finished within this call
+- `blocks<0`: raises `ValueError`
+
+### Auto-rewind behavior (by design)
+After a full round is completed, if you call `decode_into()` again with the **same** `jpeg_data`,
+the decoder will automatically restart (rewind) and decode again.
+
+This simplifies animation loops (you control whether to call again or switch to the next frame at a higher level).
+
+### Buffer requirements
+- If `block=False`:
+  - `out_buffer` must be at least the full decoded frame size
+- If `block=True`:
+  - `out_buffer` must be large enough to hold the **full frame** (because the module writes each block into the correct offset automatically)
+
+### Practical guide
+#### 1) Choose pixel format and size the framebuffer
+- `RGB565_BE` / `RGB565_LE` / `CbYCrY`: 2 bytes per pixel
+- `RGB888`: 3 bytes per pixel
 
 ```python
 import jpeg
 
-# Create a JPEG decoder object
-decoder = jpeg.Decoder(rotation=180, pixel_format="RGB888")
+img = open("image.jpg", "rb").read()
+dec = jpeg.Decoder(pixel_format="RGB565_LE", rotation=0, block=True)
+info = dec.get_img_info(img)
+w, h = info[0], info[1]
 
-# Prepare the JPEG data for decoding
-jpeg_data = open("path/to/jpeg/image.jpg", "rb").read()
-
-# Decode the JPEG image
-decoded_image = decoder.decode(jpeg_data)
+bytes_per_pixel = 2
+fb = bytearray(w * h * bytes_per_pixel)
 ```
 
-## Encoder
-
-### API Reference
-
-- `Encoder(height=240, width=320, format="RGB888", quality=90, rotation=0)`: Creates a new encoder object.
-  - `height`: Height of the input image. Required.
-  - `width`: Width of the input image. Required.
-  - `pixel_format`: Pixel format for input image (RGB888, RGB565, RGBA, YCbYCr, YCbY2YCrY2, CbYCrY, GRAY). Required.
-  - `quality`: JPEG quality (1-100). Default 90.
-  - `rotation`: Rotation angle for encoding (0, 90, 180, 270). Default 0.
-
-- `encode(img_data)`: Encodes the image data to JPEG format and returns the encoded JPEG data.
-  - `img_data`: Raw image data to encode.
-  - Returns the bytes of the encoded image.
-
-### Example
+#### 2) Full decode (simple, highest throughput per call)
+Use this when you can afford decoding the whole frame in one call.
 
 ```python
-import jpeg
-
-# Create a JPEG encoder object
-encoder = jpeg.Encoder(pixel_format="RGB888", quality=80, rotation=90, width=320, height=240)
-
-# Encode the image data to JPEG format
-image_data = open("path/to/raw/image.bin", "rb").read()
-encoded_jpeg = encoder.encode(image_data)
+done = dec.decode_into(img, fb)  # blocks defaults to 0
+if done:
+    pass
 ```
 
-## Benchmark Results for ESP32S3
+#### 3) STEP decode (cooperative scheduling, UI-friendly)
+Use this when you want to spread decoding across multiple iterations to keep the UI responsive.
 
-The following tables present the results of the JPEG decoding and encoding benchmarks performed on an ESP32S3. The image was 240x320.
+```python
+done = dec.decode_into(img, fb, blocks=1)
+if done:
+    pass
+```
 
-### Decoder Benchmark
+#### 4) Correct loop pattern for STEP mode
+`decode_into(..., blocks>0)` can return `False` until the image is complete.
 
-**Input Image Size:** 26,366 bytes.
+```python
+while True:
+    done = dec.decode_into(img, fb, blocks=1)
+    if done:
+        break
+    # do other work here (render UI, poll input, etc.)
+```
 
-| Format    | FPS Normal Decode | FPS Block Decode (15) |
-|-----------|-------------------|-----------------------|
-| RGB565_BE | 21.80             | 34.73                 |
-| RGB565_LE | 21.79             | 34.72                 |
-| RGB888    | 17.61             | 32.14                 |
-| CbYCrY    | 21.85             | 38.17                 |
+### When to use `decode_into` vs `decode`
+- Prefer `decode_into` when your goal is a full framebuffer for display (avoids Python slice assembly and reduces GC pressure).
+- Use `decode(block=True)` when you need raw block bytes and want to handle placement/output yourself.
 
-**Input Image Size:** 7,941 bytes  
+### Notes and caveats
+- STEP mode is meaningful when using `block=True` and `blocks>0`.
+- `block=True` has limitations: rotation must be 0, and scaling/clipping are not supported.
+- The decoder auto-rewinds after completing a full round when you call `decode_into()` again with the same `jpeg_data`, which is convenient for animation loops.
 
-| Format    | FPS Normal Decode | FPS Block Decode (15) |
-|-----------|-------------------|-----------------------|
-| RGB565_BE | 29.65             | 62.27                 |
-| RGB565_LE | 29.66             | 62.27                 |
-| RGB888    | 22.45             | 55.74                 |
-| CbYCrY    | 29.75             | 74.57                 |
+---
 
-Block decode will be faster, because other RAM-type might be used.
+# Encoder
 
-### Encoder Benchmark
+## Create an encoder
 
-| Quality | FPS RGB888 |
-|---------|------------|
-| 100     | 11.90      |
-| 90      | 17.58      |
-| 80      | 19.62      |
-| 70      | 20.55      |
-| 60      | 21.35      |
+```python
+enc = jpeg.Encoder(
+    height=240,
+    width=320,
+    pixel_format="RGB888",
+    quality=90,
+    rotation=0,
+)
+```
 
-The FPS might vary, depending on the image.
+### Parameters
+- `height`, `width`: required
+- `pixel_format` (input format): supported by driver (e.g. `RGB888`, `RGB565`, `RGBA`, `YCbYCr`, `CbYCrY`, `GRAY`, etc.)
+- `quality`: 1..100
+- `rotation`: `0`, `90`, `180`, `270`
 
-### Build the project
+## encode(img_data)
 
-### Setting up the build environment
+```python
+jpeg_bytes = enc.encode(raw_image_bytes)
+```
 
-To build the project, follow these instructions:
+Returns `bytes`.
 
-- ESP-IDF: I tested it on version 5.2, 5.3 and 5.4, but it might work with other versions.
-- Clone the micropython repo and this repo in a folder, e.g. "MyJPEG". I used MicroPython version 1.24 but might work also with older versions.
-- You will have to add the ESP JPEG library (I used v0.6.1). To do this, add the following to the dependencies in the respective idf_component.yml file (e.g. in micropython/ports/esp32/main_esp32s3/idf_component.yml):
+---
 
+# Benchmark
+
+## Benchmark script
+Use the provided `benchmark.py` (updated for the new bool-return `decode_into` API).
+
+## Test image
+- Resolution: **240×240**
+- JPEG size: **32627 bytes**
+- Blocks: **30** (block height: **8**)
+- NR = 100
+
+## Decoder results
+
+| Format     | FPS normal decode (`decode`, block=False) | FPS block decode (`decode`, block=True) | FPS block decode + write (python slice) | FPS decode_into step (blocks=1) | FPS decode_into full (blocks=0) |
+|-----------|--------------------------------------------|------------------------------------------|------------------------------------------|----------------------------------|----------------------------------|
+| RGB565_BE | 18.47 | 24.65 | 4.82 | 21.38 | 21.52 |
+| RGB565_LE | 18.46 | 24.65 | 4.82 | 21.40 | 21.52 |
+| RGB888    | 16.49 | 23.75 | 3.43 | 20.19 | 20.34 |
+| CbYCrY    | 18.92 | 26.03 | 4.85 | 21.99 | 22.13 |
+
+### Notes
+- `block decode` is fastest when you only need block output (no full-frame assembly).
+- `python slice` assembly is slow due to Python-level copying.
+- `decode_into` provides a practical middle ground: good speed + direct framebuffer output.
+
+## Encoder results
+
+| Quality | FPS (RGB888) |
+|--------:|--------------:|
+| 100     | 10.95 |
+| 90      | 16.88 |
+| 80      | 19.18 |
+| 70      | 20.23 |
+| 60      | 22.46 |
+
+---
+
+# Build (ESP-IDF / MicroPython external C module)
+
+## Requirements
+- ESP-IDF: tested on 5.2 / 5.3 / 5.4
+- MicroPython: tested around v1.24
+- ESP JPEG library: `espressif/esp_new_jpeg`
+
+Add dependency in `idf_component.yml` (example):
 ```yaml
-espressif/esp_new_jpeg: "^1.0.0"
+dependencies:
+  espressif/esp_new_jpeg: "^1.0.0"
 ```
 
-Alternatively, you can [download the library from the espressif component registry](https://components.espressif.com/components/espressif/esp_new_jpeg/versions/0.6.1?language=en) and unzip the data inside the esp-idf/components folder instead of altering the idf_component.yml file. In this case you might need to rename the folder to "esp_new_jpeg".
+## Build
+```sh
+. <path-to-esp-idf>/export.sh
+cd micropython/ports/esp32
 
-### Build the user module
-
-To build the project, you could do it the following way:
-
-```bash
-. <path2esp-idf>/esp-idf/export.sh
-cd MyJPEG/micropython/ports/esp32
 make USER_C_MODULES=../../../../mp_jpeg/micropython.cmake BOARD=<Your-Board> clean
 make USER_C_MODULES=../../../../mp_jpeg/micropython.cmake BOARD=<Your-Board> submodules
 make USER_C_MODULES=../../../../mp_jpeg/micropython.cmake BOARD=<Your-Board> all
 ```
 
-You can also pass the MP_JPEG_DIR variable to point to the esp_new_jpeg component folder. in ths case you have to build usinf the idf directly.
+---
 
-Micropython and mp_jpeg folders are at the same level. Note that you need those extra "/../"s while been inside the esp32 port folder. If you experience problems, visit [MicroPython external C modules](https://docs.micropython.org/en/latest/develop/cmodules.html).
+# Example usage
+
+## Full decode into framebuffer (fast, simple)
+```python
+import jpeg
+
+img = open("image.jpg","rb").read()
+
+dec = jpeg.Decoder(pixel_format="RGB565_LE", rotation=0, block=True)
+info = dec.get_img_info(img)
+w, h = info[0], info[1]
+
+fb = bytearray(w * h * 2)
+
+done = dec.decode_into(img, fb)   # default blocks=0 FULL
+# done == True
+# fb is ready
+```
+
+## Cooperative decode (UI-friendly)
+```python
+# each frame decode 1 block to avoid blocking UI
+done = dec.decode_into(img, fb, blocks=1)
+if done:
+    # completed this image
+    pass
+```
